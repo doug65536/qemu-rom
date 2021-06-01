@@ -4,6 +4,7 @@
 ./emb.ld
 ./emb.bin
 Makefile
+README.md
 bochs.cc
 bochs.h
 configure
