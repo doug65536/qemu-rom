@@ -1,0 +1,14 @@
+./emb.files
+./emb
+./emb.S
+./emb.ld
+./emb.bin
+Makefile
+bochs.cc
+bochs.h
+configure
+debug.cc
+debug.h
+pci.cc
+portio.cc
+portio.h

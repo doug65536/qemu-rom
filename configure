@@ -1,0 +1,35 @@
+#!/bin/bash
+
+SRC_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
+COMPILER_PREFIX=${COMPILER_PREFIX:-x86_64-dgos-}
+CXX=${CXX:-${COMPILER_PREFIX}g++}
+OBJCOPY=${OBJCOPY:-${COMPILER_PREFIX}objcopy}
+GDB=${GDB:-${COMPILER_PREFIX}gdb}
+QEMU=${QEMU:-qemu-system-i386}
+LN=${LN:-ln}
+
+echo SRC_DIR is $SRC_DIR
+echo COMPILER_PREFIX is $COMPILER_PREFIX
+echo CXX is $CXX
+echo OBJCOPY is $OBJCOPY
+echo GDB is $GDB
+echo QEMU is $QEMU
+echo LN is $LN
+
+if [[ $LIBGCC == "" ]]; then
+    LIBGCC=$("$CXX" -m32 -print-libgcc-file-name)
+fi
+
+printf "SRC_DIR=%s\n" "$SRC_DIR" > config.mk
+printf "COMPILER_PREFIX=%s\n" "$COMPILER_PREFIX" >> config.mk
+printf "CXX=%s\n" "$CXX" >> config.mk
+printf "OBJCOPY=%s\n" "$OBJCOPY" >> config.mk
+printf "GDB=%s\n" "$GDB" >> config.mk
+printf "QEMU=%s\n" "$QEMU" >> config.mk
+printf "LIBGCC=%s\n" "$LIBGCC" >> config.mk
+
+# Remove Makefile if it is a symlink
+[[ -L Makefile ]] && rm Makefile
+
+"$LN" -rs "${SRC_DIR}/Makefile" Makefile
