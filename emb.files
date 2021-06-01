@@ -9,6 +9,7 @@ bochs.h
 configure
 debug.cc
 debug.h
+entry.S
 pci.cc
 portio.cc
 portio.h
