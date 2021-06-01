@@ -1,6 +1,16 @@
 // ---------------------------------------------------------------------------
 .code16
 
+// At -16
+.section .text.entry, "ax", @progbits
+entry:
+    .cfi_startproc simple
+    .cfi_def_cfa esp,0
+    .cfi_undefined esp
+    .cfi_undefined eip
+    jmp _start
+    .cfi_endproc
+
 // At -64KB
 .section .text.early, "ax", @progbits
 _start:
@@ -20,16 +30,6 @@ _start:
     
     addr32 lgdtl gdt+2
     ljmpl $ 8,$ .Lcode32_entry
-    .cfi_endproc
-
-// At -16
-.section .text.entry, "ax", @progbits
-entry:
-    .cfi_startproc simple
-    .cfi_def_cfa esp,0
-    .cfi_undefined esp
-    .cfi_undefined eip
-    jmp _start
     .cfi_endproc
 
 // ---------------------------------------------------------------------------
