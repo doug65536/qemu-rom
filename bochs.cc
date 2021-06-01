@@ -94,17 +94,22 @@ bool bochs_dispi_init(uintptr_t mmio_addr,
     
     dispi_mmio = (dispi_mmio_t*)(mmio_addr + 0x500);
     
+    int width = 1024;
+    int height = 768;
+    int bpp = VBE_DISPI_BPP_32;
+    
     //dispi_mmio->id = 0xB0C5;
-    dispi_mmio->xres = 1024;
-    dispi_mmio->yres = 768;
-    dispi_mmio->bpp = 32;
+    dispi_mmio->xres = width;
+    dispi_mmio->yres = height;
+    dispi_mmio->bpp = bpp;
     dispi_mmio->bank = 0;
-    dispi_mmio->virt_width = 1024 * (dispi_mmio->bpp/8);
-    dispi_mmio->virt_height = 768;
+    dispi_mmio->virt_width = width * (bpp / 8);
+    dispi_mmio->virt_height = height;
     dispi_mmio->x_offset = 0;
     dispi_mmio->y_offset = 0;
     dispi_mmio->enable = VBE_DISPI_ENABLED | VBE_DISPI_LFB_ENABLED;
     
+    int display_nr = display_count;
     displays[display_count++] = {
         framebuffer_addr,
         framebuffer_size,
@@ -113,6 +118,22 @@ bool bochs_dispi_init(uintptr_t mmio_addr,
     
     printdbg("Initialized %uKB display at %zx\n", 
             framebuffer_size >> 10, framebuffer_addr);
+    
+    uint32_t *pixels = (uint32_t*)framebuffer_addr;
+    
+    int pixel_count = width * height;
+    for (size_t i = 0; i < pixel_count; ++i) {
+        uint32_t pixel = (!!((i / width) & 0x40) ^ !!(i & 0x40)
+                ? 0x123456 
+                : 0x654321);
+        if (display_nr & 1)
+            pixel ^= 0x44;
+        if (display_nr & 2)
+            pixel ^= 0x4400;
+        if (display_nr & 4)
+            pixel ^= 0x440000;
+        pixels[i] = pixel;
+    }
     
     return true;
 }
