@@ -4,7 +4,7 @@ include config.mk
 VPATH = ${SRC_DIR}
 
 SOURCE_NAMES = \
-	emb.S \
+	entry.S \
 	pci.cc \
 	bochs.cc \
 	debug.cc \
