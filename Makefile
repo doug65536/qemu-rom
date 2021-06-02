@@ -6,7 +6,7 @@ VPATH = ${SRC_DIR}
 SOURCE_NAMES = \
 	entry.S \
 	pci.cc \
-	bochs.cc \
+	dispi.cc \
 	assert.cc \
 	debug.cc \
 	portio.cc \

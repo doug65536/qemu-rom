@@ -3,7 +3,7 @@
 #include "pci.h"
 #include "assert.h"
 #include "debug.h"
-#include "bochs.h"
+#include "dispi.h"
 
 void pci_init()
 {

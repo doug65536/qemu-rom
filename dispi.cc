@@ -1,4 +1,4 @@
-#include "bochs.h"
+#include "dispi.h"
 #include "debug.h"
 
 // https://gitlab.com/qemu-project/qemu/-/blob/master/docs/specs/standard-vga.txt#L59

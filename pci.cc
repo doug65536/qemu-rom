@@ -1,7 +1,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdarg.h>
-#include "bochs.h"
+#include "dispi.h"
 #include "debug.h"
 #include "portio.h"
 #include "pci.h"

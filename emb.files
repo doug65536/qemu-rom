@@ -7,11 +7,11 @@ Makefile
 README.md
 assert.cc
 assert.h
-bochs.cc
-bochs.h
 configure
 debug.cc
 debug.h
+dispi.cc
+dispi.h
 entry.S
 entry.S
 main.cc
