@@ -18,7 +18,7 @@ _start:
     .cfi_def_cfa esp,0
     .cfi_undefined esp
     .cfi_undefined eip
-    mov $ 0x90000,%esp
+    mov $ ___data_vma,%esp
     
     // Hold self test result in ebp until later
     mov %eax,%ebp
@@ -67,6 +67,11 @@ _start:
     rep movsb
     
     mov %ebp,post_result
+    
+    // Enable SSE (CR4_OFXSR) (Promise we will context switch sse state)
+    mov %cr4,%eax
+    orl $ (1U << 9),%eax
+    mov %eax,%cr4
     
     call main
     

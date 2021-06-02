@@ -1,4 +1,3 @@
-#include <stddef.h>
 #include "bochs.h"
 #include "debug.h"
 
@@ -6,7 +5,7 @@
 
 // MMIO
 // Likewise applies to the pci variant only for obvious reasons.
-// 
+//
 // 0000 - 03ff : edid data blob.
 // 0400 - 041f : vga ioports (0x3c0 -> 0x3df), remapped 1:1.
 //               word access is supported, bytes are written
@@ -16,7 +15,7 @@
 // 0500 - 0515 : bochs dispi interface registers, mapped flat
 //               without index/data ports.  Use (index << 1)
 //               as offset for (16bit) register access.
-// 
+//
 // 0600 - 0607 : qemu extended registers.  qemu 2.2+ only.
 //               The pci revision is 2 (or greater) when
 //               these registers are present.  The registers
@@ -37,6 +36,7 @@
 #define VBE_DISPI_INDEX_X_OFFSET        0x8
 #define VBE_DISPI_INDEX_Y_OFFSET        0x9
 
+// 0x18
 struct dispi_mmio_t {
     uint16_t id;
     uint16_t xres;
@@ -48,6 +48,25 @@ struct dispi_mmio_t {
     uint16_t virt_height;
     uint16_t x_offset;
     uint16_t y_offset;
+
+    // From bochs implementation
+    uint16_t mem_64k;
+    uint16_t index_ddc;
+};
+
+struct bochs_vbe_mmio_t {
+    uint8_t edid[0x400];
+
+    uint8_t vga_3c0[0x20];
+    uint8_t unused[0x500 - 0x420];
+
+    dispi_mmio_t vbe;
+
+    uint8_t unused2[0x600 - (0x500 + sizeof(dispi_mmio_t))];
+
+    // When PCI revision is 2 or greater, these are present
+    uint32_t qemu_ext_size_bytes;
+    uint32_t framebuffer_endianness;    // 0xbebebebe or 0x1e1e1e1e
 };
 
 //static dispi_mmio_t volatile *dispi_mmio;
@@ -69,7 +88,7 @@ struct dispi_mmio_t {
 struct display_t {
     uintptr_t framebuffer_addr;
     uintptr_t framebuffer_size;
-    uintptr_t mmio_addr;
+    bochs_vbe_mmio_t volatile *mmio_addr;
 };
 
 // QEMU segfaults with more than 7 anyway
@@ -77,63 +96,114 @@ static constexpr size_t MAX_DISPLAYS = 8;
 static display_t displays[MAX_DISPLAYS];
 static size_t display_count;
 
-bool bochs_dispi_init(uintptr_t mmio_addr, 
+bool bochs_dispi_init(uintptr_t mmio_addr,
         uintptr_t framebuffer_addr, size_t framebuffer_size)
 {
     if (display_count >= MAX_DISPLAYS)
         return false;
-    
-    dispi_mmio_t volatile *dispi_mmio;
-    
+
     uint8_t volatile *mmio = (uint8_t volatile *)mmio_addr;
-    
+
     // Unblank
     mmio[0x400] = 0x20;
-    
+
     printdbg("Using dispi MMIO at %x\n", mmio_addr);
-    
-    dispi_mmio = (dispi_mmio_t*)(mmio_addr + 0x500);
-    
-    int width = 1024;
-    int height = 768;
-    int bpp = VBE_DISPI_BPP_32;
-    
-    //dispi_mmio->id = 0xB0C5;
-    dispi_mmio->xres = width;
-    dispi_mmio->yres = height;
-    dispi_mmio->bpp = bpp;
-    dispi_mmio->bank = 0;
-    dispi_mmio->virt_width = width * (bpp / 8);
-    dispi_mmio->virt_height = height;
-    dispi_mmio->x_offset = 0;
-    dispi_mmio->y_offset = 0;
-    dispi_mmio->enable = VBE_DISPI_ENABLED | VBE_DISPI_LFB_ENABLED;
-    
+
     int display_nr = display_count;
+
     displays[display_count++] = {
         framebuffer_addr,
         framebuffer_size,
-        mmio_addr
+        (bochs_vbe_mmio_t volatile *)mmio_addr
     };
-    
-    printdbg("Initialized %uKB display at %zx\n", 
+
+    int width = 1024;
+    int height = 768;
+
+    bochs_dispi_set_mode(display_count - 1, width, height, 32);
+
+    printdbg("Initialized %uKB display at %zx\n",
             framebuffer_size >> 10, framebuffer_addr);
-    
+
     uint32_t *pixels = (uint32_t*)framebuffer_addr;
-    
+
     int pixel_count = width * height;
-    for (size_t i = 0; i < pixel_count; ++i) {
+    for (int i = 0; i < pixel_count; ++i) {
         uint32_t pixel = (!!((i / width) & 0x40) ^ !!(i & 0x40)
-                ? 0x123456 
+                ? 0x123456
                 : 0x654321);
+
         if (display_nr & 1)
             pixel ^= 0x44;
+
         if (display_nr & 2)
             pixel ^= 0x4400;
+
         if (display_nr & 4)
             pixel ^= 0x440000;
+
         pixels[i] = pixel;
     }
-    
+
+    return true;
+}
+
+size_t bochs_dispi_display_count()
+{
+    return display_count;
+}
+
+bool bochs_dispi_set_mode(size_t index,
+        int w, int h, int bpp,
+        int x, int y, int vw, int vh,
+        bool enabled, bool noclear)
+{
+    if (index >= display_count)
+        return false;
+
+    if (!vw)
+        vw = w * (bpp / 8);
+
+    if (!vh)
+        vh = h;
+
+    bochs_vbe_mmio_t volatile *mmio = displays[index].mmio_addr;
+
+    mmio->vbe.enable = 0;
+    mmio->vbe.xres = w;
+    mmio->vbe.yres = h;
+    mmio->vbe.bpp = bpp;
+    mmio->vbe.bank = 0;
+    mmio->vbe.x_offset = x;
+    mmio->vbe.y_offset = y;
+    mmio->vbe.virt_width = vw;
+    mmio->vbe.virt_height = vh;
+
+    return bochs_dispi_set_enable(index, enabled, noclear);
+}
+
+bool bochs_dispi_set_enable(size_t index, bool enabled, bool noclear)
+{
+    if (index >= display_count)
+        return false;
+
+    bochs_vbe_mmio_t volatile *mmio = displays[index].mmio_addr;
+
+    mmio->vbe.enable = enabled
+        ? VBE_DISPI_ENABLED | VBE_DISPI_LFB_ENABLED |
+            (-noclear & VBE_DISPI_NOCLEARMEM)
+        : VBE_DISPI_DISABLED;
+
+    return true;
+}
+
+bool bochs_dispi_set_pos(size_t index, int x, int y)
+{
+    if (index >= display_count)
+        return false;
+
+    displays[index].mmio_addr->vbe.x_offset = x;
+    displays[index].mmio_addr->vbe.y_offset = y;
+
     return true;
 }

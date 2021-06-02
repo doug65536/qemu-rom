@@ -7,8 +7,10 @@ SOURCE_NAMES = \
 	entry.S \
 	pci.cc \
 	bochs.cc \
+	assert.cc \
 	debug.cc \
-	portio.cc
+	portio.cc \
+	main.cc
 
 SOURCE_NAMES_CC = $(filter %.cc,$(SOURCE_NAMES))
 SOURCE_NAMES_S = $(filter %.S,$(SOURCE_NAMES))
@@ -31,16 +33,18 @@ clean:
 
 .PHONY: clean
 
+#-Wl,--orphan-handling,warn
+
 emb: $(SOURCES)
 	$(CXX) -m32 -Wl,-melf_i386 -g \
 		-W -Wall -Wextra -Wpedantic -O0 \
-		-Werror=format \
+		-ffreestanding -fno-builtin \
+		-Werror=format -Werror=return-type \
 		-o $@ \
 		-Wa,-g \
 		-fno-exceptions -fno-asynchronous-unwind-tables \
 		-Wl,-T,"${SRC_DIR}/emb.ld" \
 		-Wl,-z,max-page-size=64 \
-		-Wl,--orphan-handling,warn \
 		-nostdlib \
 		-static \
 		-Wl,--no-dynamic-linker \
