@@ -88,6 +88,11 @@ struct bochs_vbe_mmio_t {
 struct display_t {
     uintptr_t framebuffer_addr;
     uintptr_t framebuffer_size;
+    unsigned width;
+    unsigned height;
+    unsigned bpp;
+    unsigned virtw;
+    unsigned virth;
     bochs_vbe_mmio_t volatile *mmio_addr;
 };
 
@@ -96,50 +101,27 @@ static constexpr size_t MAX_DISPLAYS = 8;
 static display_t displays[MAX_DISPLAYS];
 static size_t display_count;
 
-bool bochs_dispi_init(uintptr_t mmio_addr,
-        uintptr_t framebuffer_addr, size_t framebuffer_size)
+bool dispi_fill_screen(size_t index)
 {
     if (display_count >= MAX_DISPLAYS)
         return false;
 
-    uint8_t volatile *mmio = (uint8_t volatile *)mmio_addr;
+    display_t *display = displays + index;
+    uint32_t *pixels = (uint32_t*)display->framebuffer_addr;
 
-    // Unblank
-    mmio[0x400] = 0x20;
-
-    printdbg("Using dispi MMIO at %x\n", mmio_addr);
-
-    int display_nr = display_count;
-
-    displays[display_count++] = {
-        framebuffer_addr,
-        framebuffer_size,
-        (bochs_vbe_mmio_t volatile *)mmio_addr
-    };
-
-    int width = 1024;
-    int height = 768;
-
-    bochs_dispi_set_mode(display_count - 1, width, height, 32);
-
-    printdbg("Initialized %uKB display at %zx\n",
-            framebuffer_size >> 10, framebuffer_addr);
-
-    uint32_t *pixels = (uint32_t*)framebuffer_addr;
-
-    int pixel_count = width * height;
+    int pixel_count = display->width * display->height;
     for (int i = 0; i < pixel_count; ++i) {
-        uint32_t pixel = (!!((i / width) & 0x40) ^ !!(i & 0x40)
+        uint32_t pixel = (!!((i / display->width) & 0x40) ^ !!(i & 0x40)
                 ? 0x123456
                 : 0x654321);
 
-        if (display_nr & 1)
+        if (index & 1)
             pixel ^= 0x44;
 
-        if (display_nr & 2)
+        if (index & 2)
             pixel ^= 0x4400;
 
-        if (display_nr & 4)
+        if (index & 4)
             pixel ^= 0x440000;
 
         pixels[i] = pixel;
@@ -148,12 +130,38 @@ bool bochs_dispi_init(uintptr_t mmio_addr,
     return true;
 }
 
-size_t bochs_dispi_display_count()
+bool dispi_init(uintptr_t mmio_addr,
+        uintptr_t framebuffer_addr, size_t framebuffer_size)
+{
+    if (display_count >= MAX_DISPLAYS)
+        return false;
+
+    bochs_vbe_mmio_t volatile *mmio = (bochs_vbe_mmio_t volatile *)mmio_addr;
+
+    // Unblank
+    mmio->vga_3c0[0] = 0x20;
+
+    printdbg("Using dispi MMIO at %x\n", mmio_addr);
+
+    displays[display_count++] = {
+        framebuffer_addr,
+        framebuffer_size,
+        0, 0, 0, 0, 0,
+        mmio
+    };
+
+    printdbg("Initialized %uKB display at %zx\n",
+            framebuffer_size >> 10, framebuffer_addr);
+
+    return true;
+}
+
+size_t dispi_display_count()
 {
     return display_count;
 }
 
-bool bochs_dispi_set_mode(size_t index,
+bool dispi_set_mode(size_t index,
         int w, int h, int bpp,
         int x, int y, int vw, int vh,
         bool enabled, bool noclear)
@@ -178,11 +186,17 @@ bool bochs_dispi_set_mode(size_t index,
     mmio->vbe.y_offset = y;
     mmio->vbe.virt_width = vw;
     mmio->vbe.virt_height = vh;
+    
+    displays[index].width = w;
+    displays[index].height = h;
+    displays[index].bpp = h;
+    displays[index].virtw = h;
+    displays[index].virth = h;
 
-    return bochs_dispi_set_enable(index, enabled, noclear);
+    return dispi_set_enable(index, enabled, noclear);
 }
 
-bool bochs_dispi_set_enable(size_t index, bool enabled, bool noclear)
+bool dispi_set_enable(size_t index, bool enabled, bool noclear)
 {
     if (index >= display_count)
         return false;
@@ -197,7 +211,7 @@ bool bochs_dispi_set_enable(size_t index, bool enabled, bool noclear)
     return true;
 }
 
-bool bochs_dispi_set_pos(size_t index, int x, int y)
+bool dispi_set_pos(size_t index, int x, int y)
 {
     if (index >= display_count)
         return false;

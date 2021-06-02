@@ -85,7 +85,7 @@ void pci_init()
                     uint32_t dispi_mmio_base = dispi_mmio_bar & -16;
                     uint32_t dispi_fb_base = dispi_fb_bar & -16;
 
-                    bochs_dispi_init(dispi_mmio_base, 
+                    dispi_init(dispi_mmio_base, 
                             dispi_fb_base, bar_alignments[0]);
 
                     continue;
@@ -101,5 +101,17 @@ void pci_init()
 int main()
 {
     pci_init();
+    
+    size_t display_count = dispi_display_count();
+    
+    for (size_t i = 0; i < display_count; ++i) {
+        int width = 1024;
+        int height = 768;
+
+        dispi_set_mode(i, width, height, 32);
+
+        dispi_fill_screen(i);
+    }
+    
     return 0;
 }
