@@ -69,8 +69,6 @@ struct bochs_vbe_mmio_t {
     uint32_t framebuffer_endianness;    // 0xbebebebe or 0x1e1e1e1e
 };
 
-//static dispi_mmio_t volatile *dispi_mmio;
-
 #define VBE_DISPI_BPP_4                  0x04
 #define VBE_DISPI_BPP_8                  0x08
 #define VBE_DISPI_BPP_15                 0x0F
