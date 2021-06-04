@@ -4,11 +4,11 @@
 entry:
     mrs x0,CurrentEL
     lsr x0,x0,#2
-    cmp x0,12
+    cmp x0,3
     b.eq .Lis_el3
-    cmp x0,8
+    cmp x0,2
     b.eq .Lis_el2
-    cmp x0,4
+    cmp x0,1
     b.eq .Lis_el1
 
 .Lis_el1:   // TODO
