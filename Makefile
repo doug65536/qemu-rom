@@ -76,7 +76,7 @@ CXX_FLAGS_COMMON = \
 	-static \
 	-Wl,--no-dynamic-linker \
 	-Wl,-m$(LINKER_EMULATION) \
-	-fno-common -MMD
+	-fno-common
 
 ARCH_FLAGS_x86_64 = \
 	-mno-red-zone
@@ -118,6 +118,8 @@ debug: emb-$(ARCH).rom
 		\
 		-chardev stdio,id=debug-out \
 		$(DEBUG_CON) \
+		\
+		-smp 4 \
 		\
 		-s -S -no-reboot -no-shutdown
 
