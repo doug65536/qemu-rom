@@ -4,6 +4,7 @@
 entry:
     mrs x0,CurrentEL
     lsr x0,x0,#2
+    and x0,x0,#3
     cmp x0,3
     b.eq .Lis_el3
     cmp x0,2
