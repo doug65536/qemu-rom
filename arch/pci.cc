@@ -1,10 +1,5 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdarg.h>
-#include "dispi.h"
-#include "debug.h"
-#include "portio.h"
 #include "pci.h"
+#include "debug.h"
 #include "assert.h"
 
 uint32_t pci_read(pci_addr const& addr, uint32_t size, uint32_t offset)
@@ -13,9 +8,7 @@ uint32_t pci_read(pci_addr const& addr, uint32_t size, uint32_t offset)
 
     offset &= -4;
 
-    outd(0xcf8, addr.pioofs(offset));
-
-    uint32_t value = ind(0xcfc);
+    uint32_t value = arch_pci_read(addr, offset);
 
     uint32_t shift = word_offset * 8;
 
@@ -54,12 +47,10 @@ void pci_write(pci_addr const& addr, size_t size, uint32_t offset,
 
     offset &= -4;
 
-    outd(0xcf8, addr.pioofs(offset));
-
     uint32_t old_value = 0;
 
     if (size != sizeof(uint32_t))
-        old_value = ind(0xcfc);
+        old_value = arch_pci_read(addr, offset);
 
     size_t shift = word_offset * 8;
 
@@ -82,7 +73,7 @@ void pci_write(pci_addr const& addr, size_t size, uint32_t offset,
 
     value |= old_value;
 
-    outd(0xcfc, value);
+    arch_pci_write(addr, offset, value);
 }
 
 void set_bars(pci_addr const& addr,
@@ -92,9 +83,9 @@ void set_bars(pci_addr const& addr,
     size_t base_addr_ofs = offsetof(pci_config_hdr_t, base_addr);
 
     for (size_t i = 0; i < 5; ++i) {
-        size_t bar_ofs = base_addr_ofs + (sizeof(*bars) * i);
+        uint32_t bar_ofs = base_addr_ofs + (sizeof(*bars) * i);
         
-        printdbg("bar_ofs %u\n", bar_ofs);
+        printdbg("bar_ofs %zu\n", (size_t)bar_ofs);
 
         uint32_t bar = pci_read(addr, sizeof(uint32_t), bar_ofs);
         
@@ -105,14 +96,12 @@ void set_bars(pci_addr const& addr,
         //cachability is not important bool ispf = bar & 8;
         
         if (bar < 5 && is64)
-            next_bar = pci_read(addr, sizeof(uint32_t), 
-                    bar_ofs + sizeof(uint32_t));
+            next_bar = arch_pci_read(addr, bar_ofs + sizeof(uint32_t));
 
-        pci_write(addr, sizeof(uint32_t), bar_ofs, -16U);
+        arch_pci_write(addr, bar_ofs, -16U);
         
         if (is64) {
-            pci_write(addr, sizeof(uint32_t), 
-                    bar_ofs + sizeof(uint32_t), -1U);
+            arch_pci_write(addr, bar_ofs + sizeof(uint32_t), -1U);
         }
 
         uint64_t readback = pci_read(addr, sizeof(uint32_t), bar_ofs);
@@ -123,9 +112,8 @@ void set_bars(pci_addr const& addr,
         }
 
         if (!readback) {
-            pci_write(addr, sizeof(uint32_t), bar_ofs, bar);
-            pci_write(addr, sizeof(uint32_t), 
-                    bar_ofs + sizeof(uint32_t), next_bar);
+            arch_pci_write(addr, bar_ofs, bar);
+            arch_pci_write(addr, bar_ofs + sizeof(uint32_t), next_bar);
             continue;
         }
 
@@ -144,13 +132,11 @@ void set_bars(pci_addr const& addr,
             io_next_place = base;
         }
         
-        pci_write(addr, sizeof(uint32_t), bar_ofs, 
-                uint32_t(base & 0xFFFFFFFF));
+        pci_write(addr, sizeof(uint32_t), 
+                bar_ofs, uint32_t(base & 0xFFFFFFFF));
         
-        if (is64) {
-            pci_write(addr, sizeof(uint32_t), 
-                    bar_ofs + sizeof(uint32_t), 0);
-        }
+        if (is64)
+            pci_write(addr, sizeof(uint32_t), bar_ofs + sizeof(uint32_t), 0);
         
         uint32_t command = pci_read(addr, sizeof(uint16_t),
                 offsetof(pci_config_hdr_t, command));
@@ -646,4 +632,3 @@ char const *pci_describe_device(uint8_t cls, uint8_t sc, uint8_t pif)
         return "Unknown";
     }
 }
-

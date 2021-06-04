@@ -1,6 +1,5 @@
 #include <stddef.h>
 #include "debug.h"
-#include "portio.h"
 
 void little_formatterv_default(char *buffer, char **buffer_ptr, 
         size_t buffer_size, void *, int ch)
@@ -19,7 +18,7 @@ void little_formatterv_default(char *buffer, char **buffer_ptr,
         
         // Write the buffer to output
         while (buffer < end)
-            outb(0xe9, *buffer++);
+            arch_debug_char(*buffer++);
         
     }
 }

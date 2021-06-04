@@ -1,6 +1,6 @@
 #include <stddef.h>
 #include <stdint.h>
-#include "pci.h"
+#include "arch/pci.h"
 #include "assert.h"
 #include "debug.h"
 #include "dispi.h"
@@ -62,7 +62,8 @@ void pci_init()
 
                 if (dev_class == PCI_DEV_CLASS_BRIDGE &&
                         subclass == PCI_SUBCLASS_BRIDGE_PCI2PCI) {
-                    uint8_t secondary_bus = pci_read(addr, sizeof(uint8_t),
+                    uint8_t secondary_bus = pci_read(
+                            addr, sizeof(uint8_t),
                             offsetof(pci_config_hdr_t, base_addr[2]) + 1);
 
                     if (todo_ptr > bus_todo)
@@ -74,11 +75,13 @@ void pci_init()
 
                     set_bars(addr, mm_base, io_base, bar_alignments);
                     
-                    uint32_t dispi_mmio_bar = pci_read(addr, sizeof(uint32_t),
+                    uint32_t dispi_mmio_bar = pci_read(
+                            addr, sizeof(uint32_t),
                             offsetof(pci_config_hdr_t, base_addr) +
                             sizeof(uint32_t) * 2);
 
-                    uint32_t dispi_fb_bar = pci_read(addr, sizeof(uint32_t),
+                    uint32_t dispi_fb_bar = pci_read(
+                            addr, sizeof(uint32_t),
                             offsetof(pci_config_hdr_t, base_addr) +
                             sizeof(uint32_t) * 0);
 

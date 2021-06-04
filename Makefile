@@ -1,15 +1,24 @@
 
 include config.mk
 
-VPATH = ${SRC_DIR}
+ifeq ($(ARCH),)
+
+  $(error Invalid configuration, no ARCH)
+  
+  ifneq $($(SRC_DIR),)
+    $(shell "$(SRC_DIR)/configure)
+  endif
+
+endif
 
 SOURCE_NAMES = \
-	entry.S \
-	pci.cc \
+	arch/$(ARCH)/entry.S \
+	arch/$(ARCH)/pci_arch.cc \
+	arch/$(ARCH)/portio.cc \
+	arch/pci.cc \
 	dispi.cc \
 	assert.cc \
 	debug.cc \
-	portio.cc \
 	main.cc
 
 SOURCE_NAMES_CC = $(filter %.cc,$(SOURCE_NAMES))
@@ -24,41 +33,97 @@ SOURCES_CC = $(patsubst %,${SRC_DIR}/%,$(SOURCE_NAMES_CC))
 SOURCES_S = $(patsubst %,${SRC_DIR}/%,$(SOURCE_NAMES_S))
 SOURCES = $(SOURCES_CC) $(SOURCES_S)
 
-all: emb.bin
+all: emb-$(ARCH)
 
 .PHONY: all
 
 clean:
-	rm -f emb
+	rm -f emb-$(ARCH) emb-$(ARCH).rom
+
+distclean: clean
+	rm -f config.mk
 
 .PHONY: clean
 
+config:
+	$(SRC_DIR)/configure 
+
+.PHONY: config
+
+reconfigure:
+	( source config.mk ; $(RM) -f config.mk ; $(SRC_DIR)/configure )
+
+.PHONY: reconfigure
+
+config.mk: $(SRC_DIR)/configure
+	$(SRC_DIR)/configure 
+
+Makefile: $(SRC_DIR)/Makefile
+	$(CP) -u $< $@
+	$(TOUCH) -r $< $@
+
 #-Wl,--orphan-handling,warn
 
-emb: $(SOURCES)
-	$(CXX) -m32 -Wl,-melf_i386 -g \
-		-W -Wall -Wextra -Wpedantic -O0 \
-		-ffreestanding -fno-builtin \
-		-Werror=format -Werror=return-type \
+CXX_FLAGS_COMMON = \
+	-g \
+	-I$(SRC_DIR) \
+	-W -Wall -Wextra -Wpedantic -O0 \
+	-ffreestanding -fbuiltin \
+	-Werror=format -Werror=return-type \
+	-Wa,-g \
+	-fno-exceptions -fno-asynchronous-unwind-tables \
+	-nostdlib \
+	-static \
+	-Wl,--no-dynamic-linker \
+	-Wl,-m$(LINKER_EMULATION) \
+	-fno-common -MMD
+
+ARCH_FLAGS_x86_64 = \
+	-mno-red-zone
+
+ARCH_FLAGS_i386 = \
+	-m32 -Wa,--32
+
+emb-$(ARCH): $(SOURCES) Makefile config.mk
+	$(CXX) $(CXX_FLAGS_COMMON) \
 		-o $@ \
-		-Wa,-g \
-		-fno-exceptions -fno-asynchronous-unwind-tables \
-		-Wl,-T,"${SRC_DIR}/emb.ld" \
+		$(ARCH_FLAGS_$(ARCH)) \
+		-Wl,-T,"${SRC_DIR}/arch/$(ARCH)/emb.ld" \
 		-Wl,-z,max-page-size=64 \
-		-nostdlib \
-		-static \
-		-Wl,--no-dynamic-linker \
-		-fno-pic -fno-pie -fno-PIC -fno-PIE \
-		-fno-common \
+		-Wl,-Map,$@.map \
+		-fpie \
+		$(MCPU_FLAG) \
 		$(SOURCES) \
 		$(LIBGCC)
 
-emb: Makefile config.mk ${SRC_DIR}/emb.ld
+emb-$(ARCH): ${SRC_DIR}/arch/$(ARCH)/emb.ld | Makefile config.mk
 
-emb.bin: emb
+emb-$(ARCH).rom: emb-$(ARCH)
 	$(OBJCOPY) --strip-debug -Obinary $< $@
 
-debug: emb.bin
+debug: emb-$(ARCH).rom
+	$(QEMU) \
+		-bios $< \
+		$(QEMU_MACHINE) \
+		-cpu max \
+		\
+		-vga none \
+		-device secondary-vga \
+		-device secondary-vga \
+		-device secondary-vga \
+		-device secondary-vga \
+		-device secondary-vga \
+		-device secondary-vga \
+		-device secondary-vga \
+		\
+		-chardev stdio,id=debug-out \
+		$(DEBUG_CON) \
+		\
+		-s -S -no-reboot -no-shutdown
+
+.PHONY: debug-$(ARCH)
+
+run: emb-$(ARCH).rom
 	$(QEMU) \
 		-bios $< \
 		\
@@ -72,18 +137,70 @@ debug: emb.bin
 		-device secondary-vga \
 		\
 		-chardev stdio,id=debug-out \
-		-device isa-debugcon,chardev=debug-out \
+		$(DEBUG_CON) \
 		\
-		-s -S -no-reboot -no-shutdown \
-		\
-		-trace 'vga*' -trace 'pci*' \
-		-d int -trace 'pci*'
+		-no-reboot -no-shutdown
 
-.PHONY: debug
+.PHONY: run
 
-attach: emb
-	$(GDB) emb \
+#-display sdl
+#		-device pxb-pcie
+
+#-trace 'vga*' -trace 'pci*'
+#-d int -trace 'pci*'
+
+attach: emb-$(ARCH)
+	$(GDB) \
+		-ex 'source ../../dgos/src/gdbhelpers' \
 		-ex 'target remote :1234' \
-		-ex 'source ../../dgos/src/gdbhelpers'
+		-ex 'file $<' $(GDB_EXTRA_STARTUP_CMD)
 
 .PHONY: attach
+
+allarch:
+	unset ARCH \
+		LINKER_EMULATION \
+		QEMU_MACHINE \
+		HOSTOS \
+		SRC_DIR \
+		COMPILER_PREFIX \
+		LIBGCC \
+		GDB_EXTRA_STARTUP_CMD \
+		CXX \
+		QEMU \
+		GDB \
+		OBJCOPY \
+	&& \
+	HOST_i386=x86_64-$(HOSTOS) \
+		&& \
+		HOST_x86_64=x86_64-$(HOSTOS) \
+		&& \
+		HOST_aarch64=aarch64-linux-gnu \
+		&& \
+		mkdir -p arch_i386 \
+		&& \
+		mkdir -p arch_x86_64 \
+		&& \
+		mkdir -p arch_aarch64 \
+		&& ( \
+			cd arch_i386 \
+			&& \
+			ARCH=i386 HOST=$$HOST_i386 ../$(SRC_DIR)/configure \
+			&& \
+			cat config.mk \
+		) && ( \
+			cd arch_x86_64 \
+			&& \
+			ARCH=x86_64 HOST=$$HOST_x86_64 ../$(SRC_DIR)/configure \
+			&& \
+			cat config.mk \
+		) && ( \
+			cd arch_aarch64 \
+			&& \
+			ARCH=aarch64 HOST=$$HOST_aarch64 ../$(SRC_DIR)/configure \
+			&& \
+			cat config.mk \
+		)
+
+.PHONY: allarch
+

@@ -84,6 +84,7 @@ struct bochs_vbe_mmio_t {
 #define VBE_DISPI_NOCLEARMEM             0x80
 
 struct display_t {
+    bochs_vbe_mmio_t volatile *mmio_addr;
     uintptr_t framebuffer_addr;
     uintptr_t framebuffer_size;
     unsigned width;
@@ -91,7 +92,6 @@ struct display_t {
     unsigned bpp;
     unsigned virtw;
     unsigned virth;
-    bochs_vbe_mmio_t volatile *mmio_addr;
 };
 
 // QEMU segfaults with more than 7 anyway
@@ -110,16 +110,16 @@ bool dispi_init(uintptr_t mmio_addr,
     // Unblank
     mmio->vga_3c0[0] = 0x20;
 
-    printdbg("Using dispi MMIO at %x\n", mmio_addr);
+    printdbg("Using dispi MMIO at %zx\n", mmio_addr);
 
     displays[display_count++] = {
+        mmio,
         framebuffer_addr,
         framebuffer_size,
-        0, 0, 0, 0, 0,
-        mmio
+        0, 0, 0, 0, 0
     };
 
-    printdbg("Initialized %uKB display at %zx\n",
+    printdbg("Initialized %zuKB display at %zx\n",
             framebuffer_size >> 10, framebuffer_addr);
 
     return true;
@@ -127,7 +127,7 @@ bool dispi_init(uintptr_t mmio_addr,
 
 bool dispi_fill_screen(size_t index)
 {
-    if (display_count >= MAX_DISPLAYS)
+    if (index >= MAX_DISPLAYS)
         return false;
 
     display_t *display = displays + index;

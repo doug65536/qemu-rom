@@ -1,9 +1,9 @@
 #pragma once
 #include <stdint.h>
+#include <stddef.h>
+#include "compiler.h"
 
 typedef uint16_t ioport_t;
-
-#define _always_inline inline __attribute__((__always_inline__))
 
 static _always_inline uint8_t inb(ioport_t port)
 {

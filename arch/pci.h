@@ -75,10 +75,21 @@ char const *pci_describe_device(uint8_t cls, uint8_t sc, uint8_t pif);
 void set_bars(pci_addr const& addr,
     uint32_t &mm_next_place, uint32_t &io_next_place, uint32_t *alignments);
 
-void pci_write(pci_addr const& addr, size_t size, uint32_t offset,
+//
+// Low level 32-bit only configuration space accesses
+
+extern "C" void arch_pci_write(pci_addr const& addr, uint32_t offset,
     uint32_t value);
 
+extern "C" uint32_t arch_pci_read(pci_addr const& addr, uint32_t offset);
+
+//
+// High level arbitrarily sized configuration space accesses
+
 uint32_t pci_read(pci_addr const& addr, uint32_t size, uint32_t offset);
+
+void pci_write(pci_addr const& addr, size_t size, uint32_t offset,
+        uint32_t value);
 
 #define PCI_DEV_CLASS_UNCLASSIFIED      0x00
 #define PCI_DEV_CLASS_STORAGE           0x01
