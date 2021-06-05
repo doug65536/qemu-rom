@@ -45,7 +45,7 @@ i386)
     # Force it back to x86_64 toolchain, but use m32
     #COMPILER_PREFIX=x86_64-$HOSTOS-
     LINKER_EMULATION=${LINKER_EMULATION:-elf_${ARCH}}
-    MARCH_FLAGS=${MARCH_FLAGS:-march=i686}
+    MARCH_FLAGS=${MARCH_FLAGS:--march=i686}
     DEBUG_CON=${DEBUG_CON:--device isa-debugcon,chardev=debug-out}
     GDB_EXTRA_STARTUP_CMD='-ex '$'\'''set architecture i386'$'\''
     ;;
