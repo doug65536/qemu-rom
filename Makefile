@@ -76,6 +76,11 @@ Makefile: $(SRC_DIR)/Makefile
 ARCH_FLAGS_i386 = \
 	-m32 -Wa,--32
 
+ARCH_FLAGS_x86_64 = \
+	-mno-red-zone
+
+ARCH_FLAGS_aarch64 =
+
 CXX_FLAGS_COMMON = \
 	-g \
 	-I$(SRC_DIR) \
@@ -90,7 +95,7 @@ CXX_FLAGS_COMMON = \
 	-Wl,-m$(LINKER_EMULATION) \
 	-fno-common
 
-LDFLAGS = $(CXX_FLAGS_COMMON) \
+LINKFLAGS = $(CXX_FLAGS_COMMON) \
 	-o $@ \
 	$(ARCH_FLAGS_$(ARCH)) \
 	-Wl,-T,"${SRC_DIR}/arch/$(ARCH)/emb.ld" \
@@ -100,30 +105,24 @@ LDFLAGS = $(CXX_FLAGS_COMMON) \
 	$(MCPU_FLAG) \
 	$(LIBGCC)
 
-CXXFLAGS = \
+COMPILEFLAGS = \
 	$(CXX_FLAGS_COMMON) \
 	$(ARCH_FLAGS_$(ARCH)) \
 	$(MCPU_FLAG)
 
-ARCH_FLAGS_x86_64 = \
-	-mno-red-zone
-
 emb-$(ARCH): $(OBJECTS_ALL) Makefile config.mk
-	$(CXX) -o $@ $(OBJECTS_ALL) $(LDFLAGS)
+	$(CXX) -o $@ $(OBJECTS_ALL) $(LINKFLAGS) $(LDFLAGS)
 
 emb-$(ARCH): ${SRC_DIR}/arch/$(ARCH)/emb.ld | Makefile config.mk
 
 emb-$(ARCH).rom: emb-$(ARCH)
 	$(OBJCOPY) --strip-debug -Obinary $< $@
-DEP_FROM_SOURCE = $(patsubst %.cc,%.d,$(patsubst %.S,%.d,$(1)))
-OBJ_FROM_SOURCE = $(patsubst %.cc,%.o,$(patsubst %.S,%.o,$(1)))
-OUT_FROM_SOURCE = $(call DEP_FROM_SOURCE,$(1)) $(call OBJ_FROM_SOURCE,$(1))
 
 define compile_cc=
 
 obj/$(patsubst %.cc,%.o,$(1)): $(SRC_DIR)/$(1)
 	mkdir -p $$(@D)
-	$(CXX) -o $$@ -c $$< -MMD $(CXXFLAGS)
+	$(CXX) -o $$@ -c $$< -MMD $(COMPILEFLAGS) $(CXXFLAGS)
 
 obj/$(patsubst %.cc,%.d,$(1)): $(patsubst %.cc,%.o,$(1))
 
@@ -133,7 +132,7 @@ define compile_s=
 
 obj/$(patsubst %.S,%.o,$(1)): $(SRC_DIR)/$(1)
 	mkdir -p $$(@D)
-	$(CXX) -o $$@ -c $$< -MMD $(CXXFLAGS)
+	$(CXX) -o $$@ -c $$< -MMD $(COMPILEFLAGS) $(CXXFLAGS)
 
 obj/$(patsubst %.S,%.d,$(1)): $(patsubst %.S,%.o,$(1))
 
