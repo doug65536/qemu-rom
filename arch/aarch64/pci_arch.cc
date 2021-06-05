@@ -1,7 +1,7 @@
 #include "arch/pci.h"
 #include "debug.h"
 
-static uint8_t * const ecam = (uint8_t *)0x3f000000;
+static uint8_t * const ecam = (uint8_t *)0x4010000000;//0x3f000000;
 
 static size_t ecamofs(pci_addr const& addr, int bus_adj, size_t offset)
 {
@@ -9,6 +9,14 @@ static size_t ecamofs(pci_addr const& addr, int bus_adj, size_t offset)
             (addr.slot << 15) +
             (addr.func << 12) +
             unsigned(offset & -4);
+}
+
+arch_mmio_range_t arch_mmio_range()
+{
+    return {
+        0x10000000,
+        0x3eff0000
+    };
 }
 
 // Only do the raw 32 bit access, nothing more

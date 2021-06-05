@@ -121,12 +121,16 @@ debug: emb-$(ARCH).rom
 		\
 		-smp 4 \
 		\
-		-s -S -no-reboot -no-shutdown
+		-s -S -no-reboot -no-shutdown \
+		\
+		$(CXXFLAGS) \
+		-trace 'pci*'
 
 .PHONY: debug-$(ARCH)
 
 run: emb-$(ARCH).rom
 	$(QEMU) \
+		-cpu max \
 		-bios $< \
 		\
 		-vga none \
@@ -155,7 +159,7 @@ attach: emb-$(ARCH)
 	$(GDB) \
 		-ex 'source ../../dgos/src/gdbhelpers' \
 		-ex 'target remote :1234' \
-		-ex 'file $<' $(GDB_EXTRA_STARTUP_CMD)
+		-ex 'symbol-file $<' $(GDB_EXTRA_STARTUP_CMD)
 
 .PHONY: attach
 

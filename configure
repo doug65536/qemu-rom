@@ -26,7 +26,7 @@ aarch64)
     export QEMU_MACHINE=${QEMU_MACHINE:-"-M virt -machine gic-version=3 -machine virtualization=true -machine secure=true"}
     export QEMU_CPU=${QEMU_CPU:-"-cpu cortex-a72"}
     export MCPU_FLAG=${MCPU_FLAG:--march=armv8-a}
-    export DEBUG_CON=${DEBUG_CON:-}
+    export DEBUG_CON=${DEBUG_CON:--serial stdio}
     export GDB_EXTRA_STARTUP_CMD='-ex '$'\'''set architecture aarch64'$'\''
     ;;
     

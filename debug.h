@@ -6,6 +6,7 @@
 
 extern char const hexlookup[];
 
+extern "C" 
 _access(__write_only__, 1, 3)
 _access(__read_write__, 2)
 _printf_format(6, 0)
@@ -16,12 +17,16 @@ intptr_t little_formatterv(
         char const *format, 
         va_list ap);
 
+extern "C" 
 _printf_format(1, 0)
 intptr_t vprintdbg(char const *format, va_list ap);
 
+extern "C" 
 _printf_format(1, 2)
 intptr_t printdbg(char const *format, ...);
 
+extern "C" 
 int putsdbg(char const *s);
 
+extern "C" 
 void arch_debug_char(uint8_t ch);

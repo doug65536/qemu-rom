@@ -4,6 +4,12 @@
 
 uint32_t pci_read(pci_addr const& addr, uint32_t size, uint32_t offset)
 {
+    // Fastpath easy stuff
+    if (size == sizeof(uint32_t)) {
+        assert((offset & -4) == offset);
+        return arch_pci_read(addr, offset);
+    }
+
     uint32_t word_offset = offset & (sizeof(uint32_t) - 1);
 
     offset &= -4;
@@ -37,6 +43,12 @@ uint32_t pci_read(pci_addr const& addr, uint32_t size, uint32_t offset)
 void pci_write(pci_addr const& addr, size_t size, uint32_t offset,
         uint32_t value)
 {
+    // Fastpath easy stuff
+    if (size == sizeof(uint32_t)) {
+        assert((offset & -4) == offset);
+        return arch_pci_write(addr, offset, value);
+    }
+    
     // Naturally aligned
     assert((offset & -size) == offset);
 
@@ -76,8 +88,8 @@ void pci_write(pci_addr const& addr, size_t size, uint32_t offset,
     arch_pci_write(addr, offset, value);
 }
 
-void set_bars(pci_addr const& addr,
-    uint32_t &mm_next_place, uint32_t &io_next_place, uint32_t *alignments)
+void set_bars(pci_addr const& addr, uint32_t &mm_next_place, uint32_t mm_limit,
+        uint32_t &io_next_place, uint32_t *alignments)
 {
     uint32_t bars[5];
     size_t base_addr_ofs = offsetof(pci_config_hdr_t, base_addr);
@@ -126,6 +138,9 @@ void set_bars(pci_addr const& addr,
         if (!isio) {
             // Place as close as possible below ROM image
             base = (mm_next_place & -alignment) - alignment;
+            assert(base >= mm_limit);
+            if (base < mm_limit)
+                continue;
             mm_next_place = base;
         } else {
             base = (io_next_place & -alignment) - alignment;

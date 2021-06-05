@@ -4,13 +4,14 @@
 MEMORY {
     /* 512MB at +2MB */
 
-    /* 0 */
-    rom            : org = 0, len = 0x40000000
+    /* 0000000000000000-0000000003ffffff (prio 0, romd): virt.flash0 */
+    rom      : org = 0x00000000, len = 0x4000000
     
-    nvram          : org = 0x40000000, len = 0x40000000
+    /* 0000000004000000-0000000007ffffff (prio 0, romd): virt.flash1 */
+    nvram    : org = 0x04000000, len = 0x4000000
 
-    /* 128M */
-    ram          (w) : org = 0x40000000, len = 0x7ffffff
+    /* 0000000040000000-0000000047ffffff (prio 0, ram): mach-virt.ram */
+    ram  (w) : org = 0x40000000, len = 0x8000000
 }
 
 SECTIONS {
@@ -20,6 +21,10 @@ SECTIONS {
     /* First instruction fetched from ip=0 */
     .text : {
         *(.text.entry);
+        
+        . = ALIGN(2K);
+        *(.text.vbar);
+        
         *(.text);
         *(.text.*);
 
@@ -63,7 +68,7 @@ SECTIONS {
         
         ___heap_st = ALIGN(4K);
     } >ram AT >ram
-    
+   
     ___initial_stack = ADDR(.bss) + SIZEOF(.bss) + 0x200000;
 
     /* Create a symbol we can use to locate the start of the .data RAM */

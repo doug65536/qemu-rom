@@ -5,6 +5,7 @@
 ./emb.bin
 Makefile
 README.md
+arch/aarch64/cfi_helpers.h
 arch/aarch64/emb.ld
 arch/aarch64/entry.S
 arch/aarch64/pci_arch.cc

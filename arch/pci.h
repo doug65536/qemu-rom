@@ -2,6 +2,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
+struct arch_mmio_range_t {
+    uint64_t st;
+    uint64_t en;
+};
+
 struct pci_addr {
     int bus = 0;
     int slot = 0;
@@ -73,21 +78,29 @@ struct pci_config_hdr_t {
 char const *pci_describe_device(uint8_t cls, uint8_t sc, uint8_t pif);
 
 void set_bars(pci_addr const& addr,
-    uint32_t &mm_next_place, uint32_t &io_next_place, uint32_t *alignments);
+    uint32_t &mm_next_place, uint32_t mm_limit, 
+    uint32_t &io_next_place, uint32_t *alignments);
 
 //
 // Low level 32-bit only configuration space accesses
 
-extern "C" void arch_pci_write(pci_addr const& addr, uint32_t offset,
+extern "C"
+void arch_pci_write(pci_addr const& addr, uint32_t offset,
     uint32_t value);
 
-extern "C" uint32_t arch_pci_read(pci_addr const& addr, uint32_t offset);
+extern "C"
+uint32_t arch_pci_read(pci_addr const& addr, uint32_t offset);
+
+extern "C"
+arch_mmio_range_t arch_mmio_range();
 
 //
 // High level arbitrarily sized configuration space accesses
 
+extern "C"
 uint32_t pci_read(pci_addr const& addr, uint32_t size, uint32_t offset);
 
+extern "C"
 void pci_write(pci_addr const& addr, size_t size, uint32_t offset,
         uint32_t value);
 

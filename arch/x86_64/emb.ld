@@ -81,7 +81,7 @@ SECTIONS {
         
         ___heap_st = ALIGN(4K);
     } >ram AT >ram
-
+    
     ___initial_stack = ORIGIN(ram) - 0x100000000;
 
     /* Create a symbol we can use to locate the start of the .data RAM */

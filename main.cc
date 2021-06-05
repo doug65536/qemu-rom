@@ -12,8 +12,10 @@ void pci_init()
     int *todo_ptr = todo_end;
 
     *--todo_ptr = 0;
+    
+    arch_mmio_range_t mmio_range = arch_mmio_range();
 
-    uint32_t mm_base = 0xf0000000;
+    uint32_t mm_base = mmio_range.en;
     uint32_t io_base = 0xf000;
 
     while (todo_ptr < todo_end) {
@@ -73,7 +75,8 @@ void pci_init()
                     
                     uint32_t bar_alignments[5];
 
-                    set_bars(addr, mm_base, io_base, bar_alignments);
+                    set_bars(addr, mm_base, mmio_range.st,
+                            io_base, bar_alignments);
                     
                     uint32_t dispi_mmio_bar = pci_read(
                             addr, sizeof(uint32_t),
@@ -95,7 +98,7 @@ void pci_init()
                 }
 
                 if (!(header_type & 0x7F))
-                    set_bars(addr, mm_base, io_base, nullptr);
+                    set_bars(addr, mm_base, mmio_range.st, io_base, nullptr);
             }
         }
     }
