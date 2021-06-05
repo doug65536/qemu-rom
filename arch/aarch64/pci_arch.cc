@@ -1,5 +1,6 @@
 #include "arch/pci.h"
 #include "debug.h"
+#include "arch/halt.h"
 
 static uint8_t * const ecam = (uint8_t *)0x4010000000;
 
@@ -47,7 +48,7 @@ void arch_debug_char(uint8_t ch)
     *plo11_base = ch;
 }
 
-extern "C" void arch_halt()
+void arch_halt()
 {
     while (true)
         __asm__("wfi");
