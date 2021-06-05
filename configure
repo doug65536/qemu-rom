@@ -17,6 +17,13 @@ WHICH=$("$WHICH" -- "$WHICH") || \
 
 echo -- Configuring for $ARCH
 
+ISA_DEBUGCON=$(printf "%s " \
+    "-device isa-debugcon,chardev=debug-out" \
+    "-chardev stdio,id=debug-out")
+
+SERIAL_DEBUGCON=$(printf "%s " \
+    "-chardev stdio,id=debug-out")
+
 case "$ARCH" in
 aarch64)
     if [[ -z $GDB ]]; then
@@ -24,20 +31,20 @@ aarch64)
     fi
     LINKER_EMULATION=aarch64elf
     QEMU_MACHINE=${QEMU_MACHINE:-$(printf "%s " \
-        "-M virt" 
-        "-machine gic-version=3" 
-        "-machine virtualization=true"
+        "-M virt" \
+        "-machine gic-version=3" \
+        "-machine virtualization=true" \
         "-machine secure=true")}
     QEMU_CPU=${QEMU_CPU:-"-cpu cortex-a72"}
     MARCH_FLAGS=${MARCH_FLAGS:--march=armv8-a}
-    DEBUG_CON=${DEBUG_CON:--serial stdio}
+    DEBUG_CON=${DEBUG_CON:-"$SERIAL_DEBUGCON"}
     GDB_EXTRA_STARTUP_CMD='-ex '$'\'''set architecture aarch64'$'\''
     ;;
     
 x86_64)
     LINKER_EMULATION=${LINKER_EMULATION:-elf_${ARCH}}
     MARCH_FLAGS=${MARCH_FLAGS:-}
-    DEBUG_CON=${DEBUG_CON:--device isa-debugcon,chardev=debug-out}
+    DEBUG_CON=${DEBUG_CON:-"$ISA_DEBUGCON"}
     GDB_EXTRA_STARTUP_CMD='-ex '$'\'''set architecture i386:x86-64'$'\''
     ;;
     
@@ -46,7 +53,7 @@ i386)
     #COMPILER_PREFIX=x86_64-$HOSTOS-
     LINKER_EMULATION=${LINKER_EMULATION:-elf_${ARCH}}
     MARCH_FLAGS=${MARCH_FLAGS:--march=i686}
-    DEBUG_CON=${DEBUG_CON:--device isa-debugcon,chardev=debug-out}
+    DEBUG_CON=${DEBUG_CON:-"$ISA_DEBUGCON"}
     GDB_EXTRA_STARTUP_CMD='-ex '$'\'''set architecture i386'$'\''
     ;;
     

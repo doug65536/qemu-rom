@@ -168,7 +168,6 @@ QEMUFLAGS = \
 		-device secondary-vga \
 		-device secondary-vga \
 		\
-		-chardev stdio,id=debug-out \
 		$(DEBUG_CON) \
 		\
 		-smp 4 \
