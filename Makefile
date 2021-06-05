@@ -96,19 +96,20 @@ CXX_FLAGS_COMMON = \
 	-fno-exceptions -fno-asynchronous-unwind-tables \
 	-nostdlib \
 	-static \
+	-fpie \
 	-Wl,--no-dynamic-linker \
 	-Wl,-m$(LINKER_EMULATION) \
-	-fno-common
+	-fno-common \
+	$(ARCH_FLAGS_$(ARCH))
 
 LINKFLAGS = $(CXX_FLAGS_COMMON) \
 	-o $@ \
-	$(ARCH_FLAGS_$(ARCH)) \
 	-Wl,-T,"${SRC_DIR}/arch/$(ARCH)/emb.ld" \
 	-Wl,-z,max-page-size=64 \
 	-Wl,-Map,$@.map \
-	-fpie \
 	$(MARCH_FLAGS) \
-	$(LIBGCC)
+	$(LIBGCC) \
+	-Wl,--orphan-handling,warn
 
 COMPILEFLAGS = \
 	$(CXX_FLAGS_COMMON) \
