@@ -37,12 +37,21 @@ OBJECTS_S = $(patsubst %.S,obj/%.o,$(SOURCE_NAMES_S))
 
 OBJECTS_ALL = $(OBJECTS_CC) $(OBJECTS_S)
 
+COMPILE_ONLY_ALL = $(patsubst %.o,%.S,$(OBJECTS_ALL))
+PREPROCESS_ONLY_ALL = $(patsubst %.o,%.i,$(OBJECTS_ALL))
+
 # Generated dependencies
 DEPFILES = $(patsubst %.o,%.d,$(patsubst $(SRC_DIR)/%,%,$(OBJECTS_ALL)))
 $(DEPFILES):
 
 clean:
-	$(RM) -f emb-$(ARCH) emb-$(ARCH).rom $(OBJECTS_ALL) $(DEPFILES)
+	$(RM) -f emb-$(ARCH) \
+		emb-$(ARCH).\
+		rom \
+		$(OBJECTS_ALL) \
+		$(DEPFILES) \
+		$(COMPILE_ONLY_ALL) \
+		$(PREPROCESS_ONLY_ALL)
 	$(RM) -rf obj
 
 distclean: clean
@@ -98,13 +107,13 @@ LINKFLAGS = $(CXX_FLAGS_COMMON) \
 	-Wl,-z,max-page-size=64 \
 	-Wl,-Map,$@.map \
 	-fpie \
-	$(MCPU_FLAG) \
+	$(MARCH_FLAGS) \
 	$(LIBGCC)
 
 COMPILEFLAGS = \
 	$(CXX_FLAGS_COMMON) \
 	$(ARCH_FLAGS_$(ARCH)) \
-	$(MCPU_FLAG)
+	$(MARCH_FLAGS)
 
 emb-$(ARCH): $(OBJECTS_ALL) Makefile config.mk
 	$(CXX) -o $@ $(OBJECTS_ALL) $(LINKFLAGS) $(LDFLAGS)
@@ -116,31 +125,22 @@ emb-$(ARCH).rom: emb-$(ARCH)
 
 define compile_extension=
 
+# Preprocess, compile, and assemble to object file normally
 obj/$(patsubst %.$(2),%.o,$(1)): $(SRC_DIR)/$(1)
 	mkdir -p $$(@D)
 	$(CXX) -o $$@ -c $$< -MMD $(COMPILEFLAGS) $(CXXFLAGS)
 
+# Preprocess, compile, but do not assemble, and do not create object file
+obj/$(patsubst %.$(2),%.S,$(1)): $(SRC_DIR)/$(1)
+	mkdir -p $$(@D)
+	$(CXX) -o $$@ -S $$< -MMD $(COMPILEFLAGS) $(CXXFLAGS)
+
+# Preprocess only, do not compile, do not assemble, do not create object file
+obj/$(patsubst %.$(2),%.i,$(1)): $(SRC_DIR)/$(1)
+	mkdir -p $$(@D)
+	$(CXX) -o $$@ -E $$< -MMD $(COMPILEFLAGS) $(CXXFLAGS)
+
 obj/$(patsubst %.$(2),%.d,$(1)): $(patsubst %.$(2),%.o,$(1))
-
-endef
-
-define compile_cc=
-
-obj/$(patsubst %.cc,%.o,$(1)): $(SRC_DIR)/$(1)
-	mkdir -p $$(@D)
-	$(CXX) -o $$@ -c $$< -MMD $(COMPILEFLAGS) $(CXXFLAGS)
-
-obj/$(patsubst %.cc,%.d,$(1)): $(patsubst %.cc,%.o,$(1))
-
-endef
-
-define compile_s=
-
-obj/$(patsubst %.S,%.o,$(1)): $(SRC_DIR)/$(1)
-	mkdir -p $$(@D)
-	$(CXX) -o $$@ -c $$< -MMD $(COMPILEFLAGS) $(CXXFLAGS)
-
-obj/$(patsubst %.S,%.d,$(1)): $(patsubst %.S,%.o,$(1))
 
 endef
 

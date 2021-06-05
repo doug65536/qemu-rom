@@ -29,23 +29,23 @@ aarch64)
         "-machine virtualization=true"
         "-machine secure=true")}
     QEMU_CPU=${QEMU_CPU:-"-cpu cortex-a72"}
-    MCPU_FLAG=${MCPU_FLAG:--march=armv8-a}
+    MARCH_FLAGS=${MARCH_FLAGS:--march=armv8-a}
     DEBUG_CON=${DEBUG_CON:--serial stdio}
     GDB_EXTRA_STARTUP_CMD='-ex '$'\'''set architecture aarch64'$'\''
     ;;
     
 x86_64)
     LINKER_EMULATION=${LINKER_EMULATION:-elf_${ARCH}}
-    MCPU_FLAG=${MCPU_FLAG:-}
+    MARCH_FLAGS=${MARCH_FLAGS:-}
     DEBUG_CON=${DEBUG_CON:--device isa-debugcon,chardev=debug-out}
     GDB_EXTRA_STARTUP_CMD='-ex '$'\'''set architecture i386:x86-64'$'\''
     ;;
     
 i386)
     # Force it back to x86_64 toolchain, but use m32
-    COMPILER_PREFIX=x86_64-$HOSTOS-
+    #COMPILER_PREFIX=x86_64-$HOSTOS-
     LINKER_EMULATION=${LINKER_EMULATION:-elf_${ARCH}}
-    MCPU_FLAG=${MCPU_FLAG:-}
+    MARCH_FLAGS=${MARCH_FLAGS:-march=i686}
     DEBUG_CON=${DEBUG_CON:--device isa-debugcon,chardev=debug-out}
     GDB_EXTRA_STARTUP_CMD='-ex '$'\'''set architecture i386'$'\''
     ;;
@@ -65,6 +65,7 @@ declare -A PROGRAMS=(
     ["MV"]=${MV:-mv}
     ["REALPATH"]=${REALPATH:-realpath}
     ["TOUCH"]=${TOUCH:-touch}
+    ["LESS"]=${LESS:-less}
 )
 
 declare -A RESOLVED_PROGRAMS=()

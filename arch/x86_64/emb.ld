@@ -40,7 +40,15 @@ SECTIONS {
     .rodata : {
         *(.rodata);
         *(.rodata.*);
-
+        *(.got);
+        *(.got.plt);
+        *(.igot.plt);
+        *(.iplt);
+        *(.rela.data);
+        *(.rela.got);
+        *(.rela.iplt);
+        *(.rela.text.early);
+        *(.comment);
         . = ALIGN(4K);
     } >rom AT >rom =0
 
@@ -58,7 +66,7 @@ SECTIONS {
         ___data_end = .;
         . = ALIGN(16K);
     } >ram AT >rom =0
-    
+
     . = ALIGN(16K);
 
     .bss (NOLOAD) : {
@@ -78,15 +86,15 @@ SECTIONS {
         *(.bss.align8);
         *(.bss.align8.*);
         ___bss_en = .;
-        
+
         ___heap_st = ALIGN(4K);
     } >ram AT >ram
-    
+
     ___initial_stack = ORIGIN(ram) - 0x100000000;
 
     /* Create a symbol we can use to locate the start of the .data RAM */
     ___data_vma = ADDR(.data);
-    
+
     /* Create a symbol we can use to locate the start of the .data ROM image */
     ___data_lma = LOADADDR(.data);
 }
