@@ -64,7 +64,7 @@ SECTIONS {
         *(.data);
         *(.data.*);
         ___data_end = .;
-        . = ALIGN(16K);
+        . = ALIGN(4K);
     } >ram AT >rom =0
 
     .debug : {    
@@ -84,9 +84,7 @@ SECTIONS {
         *(COMMON)
         *(COMMON.*)
         *(COMMON*)
-        . = ALIGN(16K);
-        *(.bss.align16k);
-        *(.bss.align16k.*);
+        . = ALIGN(4K);
         *(.bss.align4k);
         *(.bss.align4k.*);
         *(.bss.align64);
