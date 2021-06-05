@@ -55,6 +55,7 @@ esac
 declare -A PROGRAMS=(
     ["CXX"]=${CXX:-${COMPILER_PREFIX}g++}
     ["OBJCOPY"]=${OBJCOPY:-${COMPILER_PREFIX}objcopy}
+    ["OBJDUMP"]=${OBJDUMP:-${COMPILER_PREFIX}objdump}
     ["GDB"]=${GDB:-${COMPILER_PREFIX}gdb}
     ["QEMU"]=${QEMU:-qemu-system-$ARCH}
     ["LN"]=${LN:-ln}
