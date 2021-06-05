@@ -115,12 +115,14 @@ TMPFILE=$(mktemp) || fail Could not create temp file
 
 declare -a PASSTHRU=(
     "ARCH"
+    "MARCH_FLAGS"
     "LINKER_EMULATION"
     "QEMU_MACHINE"
     "HOSTOS"
     "SRC_DIR"
     "COMPILER_PREFIX"
     "LIBGCC"
+    "DEBUG_CON"
     "GDB_EXTRA_STARTUP_CMD"
 )
 
