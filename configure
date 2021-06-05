@@ -5,14 +5,14 @@ function fail() {
     exit 1
 }
 
-export HOST=${HOST:-x86_64-dgos}
-export ARCH=${ARCH:-${HOST%%-*}}    # x86_64
-export HOSTOS=${HOST#*-}            # dgos
-export COMPILER_PREFIX=${COMPILER_PREFIX:-"$HOST-"}
+HOST=${HOST:-x86_64-dgos}
+ARCH=${ARCH:-${HOST%%-*}}    # x86_64
+HOSTOS=${HOST#*-}            # dgos
+COMPILER_PREFIX=${COMPILER_PREFIX:-"$HOST-"}
 echo Compiler prefix is $COMPILER_PREFIX
 
-export WHICH=${WHICH:-which}
-export WHICH=$("$WHICH" -- "$WHICH") || \
+WHICH=${WHICH:-which}
+WHICH=$("$WHICH" -- "$WHICH") || \
 		fail Error getting full path to \"which\"
 
 echo -- Configuring for $ARCH
@@ -20,30 +20,34 @@ echo -- Configuring for $ARCH
 case "$ARCH" in
 aarch64)
     if [[ -z $GDB ]]; then
-        export GDB=${GDB:-gdb-multiarch}
+        GDB=${GDB:-gdb-multiarch}
     fi
-    export LINKER_EMULATION=aarch64elf
-    export QEMU_MACHINE=${QEMU_MACHINE:-"-M virt -machine gic-version=3 -machine virtualization=true -machine secure=true"}
-    export QEMU_CPU=${QEMU_CPU:-"-cpu cortex-a72"}
-    export MCPU_FLAG=${MCPU_FLAG:--march=armv8-a}
-    export DEBUG_CON=${DEBUG_CON:--serial stdio}
-    export GDB_EXTRA_STARTUP_CMD='-ex '$'\'''set architecture aarch64'$'\''
+    LINKER_EMULATION=aarch64elf
+    QEMU_MACHINE=${QEMU_MACHINE:-$(printf "%s " \
+        "-M virt" 
+        "-machine gic-version=3" 
+        "-machine virtualization=true"
+        "-machine secure=true")}
+    QEMU_CPU=${QEMU_CPU:-"-cpu cortex-a72"}
+    MCPU_FLAG=${MCPU_FLAG:--march=armv8-a}
+    DEBUG_CON=${DEBUG_CON:--serial stdio}
+    GDB_EXTRA_STARTUP_CMD='-ex '$'\'''set architecture aarch64'$'\''
     ;;
     
 x86_64)
-    export LINKER_EMULATION=${LINKER_EMULATION:-elf_${ARCH}}
-    export MCPU_FLAG=${MCPU_FLAG:-}
-    export DEBUG_CON=${DEBUG_CON:--device isa-debugcon,chardev=debug-out}
-    export GDB_EXTRA_STARTUP_CMD='-ex '$'\'''set architecture i386:x86-64'$'\''
+    LINKER_EMULATION=${LINKER_EMULATION:-elf_${ARCH}}
+    MCPU_FLAG=${MCPU_FLAG:-}
+    DEBUG_CON=${DEBUG_CON:--device isa-debugcon,chardev=debug-out}
+    GDB_EXTRA_STARTUP_CMD='-ex '$'\'''set architecture i386:x86-64'$'\''
     ;;
     
 i386)
     # Force it back to x86_64 toolchain, but use m32
-    export COMPILER_PREFIX=x86_64-$HOSTOS-
-    export LINKER_EMULATION=${LINKER_EMULATION:-elf_${ARCH}}
-    export MCPU_FLAG=${MCPU_FLAG:-}
-    export DEBUG_CON=${DEBUG_CON:--device isa-debugcon,chardev=debug-out}
-    export GDB_EXTRA_STARTUP_CMD='-ex '$'\'''set architecture i386'$'\''
+    COMPILER_PREFIX=x86_64-$HOSTOS-
+    LINKER_EMULATION=${LINKER_EMULATION:-elf_${ARCH}}
+    MCPU_FLAG=${MCPU_FLAG:-}
+    DEBUG_CON=${DEBUG_CON:--device isa-debugcon,chardev=debug-out}
+    GDB_EXTRA_STARTUP_CMD='-ex '$'\'''set architecture i386'$'\''
     ;;
     
 esac
@@ -75,7 +79,7 @@ for name in "${!PROGRAMS[@]}"; do
     # information in another associative array
     RESOLVED_PROGRAMS+=(["$name"]=$loc)
     
-    eval export "$name=$loc"
+    eval "$name=$loc"
 done
 
 # Then copy the updated information back into the desired storage location
@@ -84,10 +88,10 @@ for name in "${!RESOLVED_PROGRAMS[@]}"; do
 done
 RESOLVED_PROGRAMS=()
 
-export ABS_SRC_DIR="$( cd "$( dirname \
+ABS_SRC_DIR="$( cd "$( dirname \
         "${BASH_SOURCE[0]}" )"&> /dev/null && pwd )" || exit
 
-export SRC_DIR=$("$REALPATH" --relative-to="." "$ABS_SRC_DIR") || \
+SRC_DIR=$("$REALPATH" --relative-to="." "$ABS_SRC_DIR") || \
         fail Unable to deduce relative path to source
 
 if [[ $LIBGCC == "" ]]; then

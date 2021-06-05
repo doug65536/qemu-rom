@@ -1,5 +1,5 @@
 
-# Turn all the built-in stuff off
+# Turn off all the built-in stuff
 .SUFFIXES:
 
 include config.mk
@@ -36,10 +36,6 @@ OBJECTS_CC = $(patsubst %.cc,obj/%.o,$(SOURCE_NAMES_CC))
 OBJECTS_S = $(patsubst %.S,obj/%.o,$(SOURCE_NAMES_S))
 
 OBJECTS_ALL = $(OBJECTS_CC) $(OBJECTS_S)
-
-#SOURCE_PATHS_CC = $(patsubst %,${SRC_DIR}/%,$(SOURCE_NAMES_CC))
-#SOURCE_PATHS_S = $(patsubst %,${SRC_DIR}/%,$(SOURCE_NAMES_S))
-#SOURCE_PATHS = $(SOURCE_PATHS_CC) $(SOURCE_PATHS_S)
 
 # Generated dependencies
 DEPFILES = $(patsubst %.o,%.d,$(patsubst $(SRC_DIR)/%,%,$(OBJECTS_ALL)))
@@ -118,6 +114,16 @@ emb-$(ARCH): ${SRC_DIR}/arch/$(ARCH)/emb.ld | Makefile config.mk
 emb-$(ARCH).rom: emb-$(ARCH)
 	$(OBJCOPY) --strip-debug -Obinary $< $@
 
+define compile_extension=
+
+obj/$(patsubst %.$(2),%.o,$(1)): $(SRC_DIR)/$(1)
+	mkdir -p $$(@D)
+	$(CXX) -o $$@ -c $$< -MMD $(COMPILEFLAGS) $(CXXFLAGS)
+
+obj/$(patsubst %.$(2),%.d,$(1)): $(patsubst %.$(2),%.o,$(1))
+
+endef
+
 define compile_cc=
 
 obj/$(patsubst %.cc,%.o,$(1)): $(SRC_DIR)/$(1)
@@ -139,10 +145,10 @@ obj/$(patsubst %.S,%.d,$(1)): $(patsubst %.S,%.o,$(1))
 endef
 
 $(foreach file,$(SOURCE_NAMES_CC), \
-	$(eval $(call compile_cc,$(file))))
+	$(eval $(call compile_extension,$(file),cc)))
 
 $(foreach file,$(SOURCE_NAMES_S), \
-	$(eval $(call compile_s,$(file))))
+	$(eval $(call compile_extension,$(file),S)))
 
 TRACEFLAGS = \
 	-trace 'pci*' 
