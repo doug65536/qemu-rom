@@ -1,4 +1,7 @@
 
+# Turn all the built-in stuff off
+.SUFFIXES:
+
 include config.mk
 
 ifeq ($(ARCH),)
@@ -10,6 +13,10 @@ ifeq ($(ARCH),)
   endif
 
 endif
+
+all: emb-$(ARCH).rom
+
+.PHONY: all
 
 SOURCE_NAMES = \
 	arch/$(ARCH)/entry.S \
@@ -23,22 +30,24 @@ SOURCE_NAMES = \
 
 SOURCE_NAMES_CC = $(filter %.cc,$(SOURCE_NAMES))
 SOURCE_NAMES_S = $(filter %.S,$(SOURCE_NAMES))
+SOURCE_NAMES_ALL = $(SOURCE_NAMES_CC) $(SOURCE_NAMES_S)
 
-OBJECTS_CC = $(patsubst %.cc,%.o,$(SOURCES_CC))
-OBJECTS_S = $(patsubst %.S,%.o,$(SOURCE_S))
+OBJECTS_CC = $(patsubst %.cc,obj/%.o,$(SOURCE_NAMES_CC))
+OBJECTS_S = $(patsubst %.S,obj/%.o,$(SOURCE_NAMES_S))
 
-OBJECTS = $(OBJECTS_CC) $(OBJECTS_S)
+OBJECTS_ALL = $(OBJECTS_CC) $(OBJECTS_S)
 
-SOURCES_CC = $(patsubst %,${SRC_DIR}/%,$(SOURCE_NAMES_CC))
-SOURCES_S = $(patsubst %,${SRC_DIR}/%,$(SOURCE_NAMES_S))
-SOURCES = $(SOURCES_CC) $(SOURCES_S)
+#SOURCE_PATHS_CC = $(patsubst %,${SRC_DIR}/%,$(SOURCE_NAMES_CC))
+#SOURCE_PATHS_S = $(patsubst %,${SRC_DIR}/%,$(SOURCE_NAMES_S))
+#SOURCE_PATHS = $(SOURCE_PATHS_CC) $(SOURCE_PATHS_S)
 
-all: emb-$(ARCH)
-
-.PHONY: all
+# Generated dependencies
+DEPFILES = $(patsubst %.o,%.d,$(patsubst $(SRC_DIR)/%,%,$(OBJECTS_ALL)))
+$(DEPFILES):
 
 clean:
-	rm -f emb-$(ARCH) emb-$(ARCH).rom
+	$(RM) -f emb-$(ARCH) emb-$(ARCH).rom $(OBJECTS_ALL) $(DEPFILES)
+	$(RM) -rf obj
 
 distclean: clean
 	rm -f config.mk
@@ -64,6 +73,9 @@ Makefile: $(SRC_DIR)/Makefile
 
 #-Wl,--orphan-handling,warn
 
+ARCH_FLAGS_i386 = \
+	-m32 -Wa,--32
+
 CXX_FLAGS_COMMON = \
 	-g \
 	-I$(SRC_DIR) \
@@ -78,31 +90,65 @@ CXX_FLAGS_COMMON = \
 	-Wl,-m$(LINKER_EMULATION) \
 	-fno-common
 
+LDFLAGS = $(CXX_FLAGS_COMMON) \
+	-o $@ \
+	$(ARCH_FLAGS_$(ARCH)) \
+	-Wl,-T,"${SRC_DIR}/arch/$(ARCH)/emb.ld" \
+	-Wl,-z,max-page-size=64 \
+	-Wl,-Map,$@.map \
+	-fpie \
+	$(MCPU_FLAG) \
+	$(LIBGCC)
+
+CXXFLAGS = \
+	$(CXX_FLAGS_COMMON) \
+	$(ARCH_FLAGS_$(ARCH)) \
+	$(MCPU_FLAG)
+
 ARCH_FLAGS_x86_64 = \
 	-mno-red-zone
 
-ARCH_FLAGS_i386 = \
-	-m32 -Wa,--32
-
-emb-$(ARCH): $(SOURCES) Makefile config.mk
-	$(CXX) $(CXX_FLAGS_COMMON) \
-		-o $@ \
-		$(ARCH_FLAGS_$(ARCH)) \
-		-Wl,-T,"${SRC_DIR}/arch/$(ARCH)/emb.ld" \
-		-Wl,-z,max-page-size=64 \
-		-Wl,-Map,$@.map \
-		-fpie \
-		$(MCPU_FLAG) \
-		$(SOURCES) \
-		$(LIBGCC)
+emb-$(ARCH): $(OBJECTS_ALL) Makefile config.mk
+	$(CXX) -o $@ $(OBJECTS_ALL) $(LDFLAGS)
 
 emb-$(ARCH): ${SRC_DIR}/arch/$(ARCH)/emb.ld | Makefile config.mk
 
 emb-$(ARCH).rom: emb-$(ARCH)
 	$(OBJCOPY) --strip-debug -Obinary $< $@
+DEP_FROM_SOURCE = $(patsubst %.cc,%.d,$(patsubst %.S,%.d,$(1)))
+OBJ_FROM_SOURCE = $(patsubst %.cc,%.o,$(patsubst %.S,%.o,$(1)))
+OUT_FROM_SOURCE = $(call DEP_FROM_SOURCE,$(1)) $(call OBJ_FROM_SOURCE,$(1))
 
-debug: emb-$(ARCH).rom
-	$(QEMU) \
+define compile_cc=
+
+obj/$(patsubst %.cc,%.o,$(1)): $(SRC_DIR)/$(1)
+	mkdir -p $$(@D)
+	$(CXX) -o $$@ -c $$< -MMD $(CXXFLAGS)
+
+obj/$(patsubst %.cc,%.d,$(1)): $(patsubst %.cc,%.o,$(1))
+
+endef
+
+define compile_s=
+
+obj/$(patsubst %.S,%.o,$(1)): $(SRC_DIR)/$(1)
+	mkdir -p $$(@D)
+	$(CXX) -o $$@ -c $$< -MMD $(CXXFLAGS)
+
+obj/$(patsubst %.S,%.d,$(1)): $(patsubst %.S,%.o,$(1))
+
+endef
+
+$(foreach file,$(SOURCE_NAMES_CC), \
+	$(eval $(call compile_cc,$(file))))
+
+$(foreach file,$(SOURCE_NAMES_S), \
+	$(eval $(call compile_s,$(file))))
+
+TRACEFLAGS = \
+	-trace 'pci*' 
+
+QEMUFLAGS = \
 		-bios $< \
 		$(QEMU_MACHINE) \
 		-cpu max \
@@ -121,39 +167,22 @@ debug: emb-$(ARCH).rom
 		\
 		-smp 4 \
 		\
-		-s -S -no-reboot -no-shutdown \
-		\
-		$(CXXFLAGS) \
-		-trace 'pci*'
+		-no-reboot -no-shutdown $(QEMUEXTRAFLAGS)
+
+debug: emb-$(ARCH).rom
+	$(QEMU) -s -S $(TRACEFLAGS) $(QEMUFLAGS)
 
 .PHONY: debug-$(ARCH)
 
 run: emb-$(ARCH).rom
-	$(QEMU) \
-		-cpu max \
-		-bios $< \
-		\
-		-vga none \
-		-device secondary-vga \
-		-device secondary-vga \
-		-device secondary-vga \
-		-device secondary-vga \
-		-device secondary-vga \
-		-device secondary-vga \
-		-device secondary-vga \
-		\
-		-chardev stdio,id=debug-out \
-		$(DEBUG_CON) \
-		\
-		-no-reboot -no-shutdown
+	$(QEMU) -s $(QEMUFLAGS)
 
 .PHONY: run
 
-#-display sdl
-#		-device pxb-pcie
+run-nogdb: emb-$(ARCH).rom
+	$(QEMU) $(QEMUFLAGS)
 
-#-trace 'vga*' -trace 'pci*'
-#-d int -trace 'pci*'
+.PHONY: run-nogdb
 
 attach: emb-$(ARCH)
 	$(GDB) \
@@ -163,50 +192,4 @@ attach: emb-$(ARCH)
 
 .PHONY: attach
 
-allarch:
-	unset ARCH \
-		LINKER_EMULATION \
-		QEMU_MACHINE \
-		HOSTOS \
-		SRC_DIR \
-		COMPILER_PREFIX \
-		LIBGCC \
-		GDB_EXTRA_STARTUP_CMD \
-		CXX \
-		QEMU \
-		GDB \
-		OBJCOPY \
-	&& \
-	HOST_i386=x86_64-$(HOSTOS) \
-		&& \
-		HOST_x86_64=x86_64-$(HOSTOS) \
-		&& \
-		HOST_aarch64=aarch64-linux-gnu \
-		&& \
-		mkdir -p arch_i386 \
-		&& \
-		mkdir -p arch_x86_64 \
-		&& \
-		mkdir -p arch_aarch64 \
-		&& ( \
-			cd arch_i386 \
-			&& \
-			ARCH=i386 HOST=$$HOST_i386 ../$(SRC_DIR)/configure \
-			&& \
-			cat config.mk \
-		) && ( \
-			cd arch_x86_64 \
-			&& \
-			ARCH=x86_64 HOST=$$HOST_x86_64 ../$(SRC_DIR)/configure \
-			&& \
-			cat config.mk \
-		) && ( \
-			cd arch_aarch64 \
-			&& \
-			ARCH=aarch64 HOST=$$HOST_aarch64 ../$(SRC_DIR)/configure \
-			&& \
-			cat config.mk \
-		)
-
-.PHONY: allarch
-
+-include $(DEPFILES)

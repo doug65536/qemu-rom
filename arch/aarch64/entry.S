@@ -19,11 +19,11 @@ entry:
     b.eq .Lis_el2
     cmp x0,1
     b.eq .Lis_el1
-
+    
+.Lis_el3:
 .Lis_el1:   // TODO
 .Lis_el2:   // TODO
-.Lis_el3:   // TODO
-    
+
 .Ldone_el_init:
     # Go sleep if not BSP
     mrs x0,MPIDR_EL1
@@ -49,6 +49,7 @@ entry:
     bl main
 
 idle_trap:
+    msr daifset,#0xF
     wfi
     b idle_trap
 

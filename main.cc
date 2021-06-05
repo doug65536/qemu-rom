@@ -106,6 +106,7 @@ void pci_init()
 
 int main()
 {
+    //*(int*)0xf00ff00f = 42;
     pci_init();
     
     size_t display_count = dispi_display_count();

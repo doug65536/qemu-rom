@@ -1,7 +1,7 @@
 #include "arch/pci.h"
 #include "debug.h"
 
-static uint8_t * const ecam = (uint8_t *)0x4010000000;//0x3f000000;
+static uint8_t * const ecam = (uint8_t *)0x4010000000;
 
 static size_t ecamofs(pci_addr const& addr, int bus_adj, size_t offset)
 {
