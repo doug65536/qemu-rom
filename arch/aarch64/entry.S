@@ -78,7 +78,11 @@ vbar_0x200_synchronous_spx: //vbar_entry_stub 0x200
 .cfi_startproc simple
 .cfi_signal_frame
 .cfi_def_cfa sp,0
-.cfi_return_column 65
+//.cfi_return_column 65
+//.cfi_return_column CFI_ELR_mode
+.cfi_register CFI_PC,CFI_ELR_mode
+.cfi_same_value CFI_SP
+.cfi_same_value CFI_X30
 wtf:
 0:
 b crashed
@@ -98,11 +102,24 @@ vbar_0x700_fiq:             vbar_entry_stub 0x700
 vbar_0x780_serror:          vbar_entry_stub 0x780
 
 crashed:
+.set i, 0
+.rept 128
     .cfi_startproc simple
     .cfi_signal_frame
-    .cfi_return_column CFI_ELR_mode
+    .cfi_return_column (i)
     .cfi_def_cfa CFI_SP,0
-    .cfi_same_value CFI_X30
+    
+    mov x0,x0
+    
+    .cfi_endproc
+    .set i, i + 1
+.endr
+
+    .cfi_startproc simple
+    .cfi_signal_frame
+    .cfi_return_column CFI_ELR_mode // 33
+    .cfi_def_cfa CFI_SP,0   // 31
+    .cfi_same_value CFI_X30 //30
 
 0:  wfi
     wfe
