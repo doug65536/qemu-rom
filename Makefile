@@ -184,6 +184,16 @@ run: emb-$(ARCH).rom
 
 .PHONY: run
 
+disassemble: emb-$(ARCH)
+	$(OBJDUMP) -S $< | $(LESS)
+
+.PHONY: disassemble
+
+objdump: emb-$(ARCH)
+	$(OBJDUMP) -x $< | $(LESS)
+
+.PHONY: objdump
+
 run-nogdb: emb-$(ARCH).rom
 	$(QEMU) $(QEMUFLAGS)
 
