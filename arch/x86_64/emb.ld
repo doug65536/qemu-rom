@@ -67,7 +67,15 @@ SECTIONS {
         . = ALIGN(16K);
     } >ram AT >rom =0
 
-    . = ALIGN(16K);
+    .debug : {    
+        *(.debug_abbrev);
+        *(.debug_aranges);
+        *(.debug_frame);
+        *(.debug_info);
+        *(.debug_line);
+        *(.debug_ranges);
+        *(.debug_str);
+    } >rom AT >rom = 0
 
     .bss (NOLOAD) : {
         ___bss_st = .;
