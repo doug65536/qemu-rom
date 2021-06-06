@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include "pci.h"
 #include "debug.h"
 #include "assert.h"
@@ -88,13 +89,15 @@ void pci_write(pci_addr const& addr, size_t size, uint32_t offset,
     arch_pci_write(addr, offset, value);
 }
 
-void set_bars(pci_addr const& addr, uint32_t &mm_next_place, uint32_t mm_limit,
-        uint32_t &io_next_place, uint32_t *alignments)
+void set_bars(pci_addr const& addr, uint64_t &mm_next_place, uint64_t mm_limit,
+        uint32_t &io_next_place, uint64_t *bar_readback, uint32_t *alignments)
 {
     uint32_t bars[5];
     size_t base_addr_ofs = offsetof(pci_config_hdr_t, base_addr);
+    
+    bool is64 = false;
 
-    for (size_t i = 0; i < 5; ++i) {
+    for (size_t i = 0; i < 5; i = (i + 1) + is64) {
         uint32_t bar_ofs = base_addr_ofs + (sizeof(*bars) * i);
         
         printdbg("bar_ofs %zu\n", (size_t)bar_ofs);
@@ -103,7 +106,7 @@ void set_bars(pci_addr const& addr, uint32_t &mm_next_place, uint32_t mm_limit,
         
         uint32_t next_bar = 0;
         
-        bool is64 = (bar & 6) == 4;
+        is64 = (bar & 6) == 4;
         bool isio = bar & 1;
         //cachability is not important bool ispf = bar & 8;
         
@@ -134,7 +137,7 @@ void set_bars(pci_addr const& addr, uint32_t &mm_next_place, uint32_t mm_limit,
         if (alignments)
             alignments[i] = alignment;
 
-        uint32_t base;
+        uint64_t base;
         if (!isio) {
             // Place as close as possible below ROM image
             base = (mm_next_place & -alignment) - alignment;
@@ -147,11 +150,27 @@ void set_bars(pci_addr const& addr, uint32_t &mm_next_place, uint32_t mm_limit,
             io_next_place = base;
         }
         
+        
         pci_write(addr, sizeof(uint32_t), 
                 bar_ofs, uint32_t(base & 0xFFFFFFFF));
         
         if (is64)
             pci_write(addr, sizeof(uint32_t), bar_ofs + sizeof(uint32_t), 0);
+        
+        
+        bar_readback[i] = base;
+        
+        readback = pci_read(addr, sizeof(uint32_t), bar_ofs);
+        
+        if (is64) {
+            if ((i + 1) < 5)
+                bar_readback[i + 1] = 0;
+            
+            readback |= (uint64_t)pci_read(addr, sizeof(uint32_t), 
+                    bar_ofs + sizeof(uint32_t)) << 32;
+        }
+        
+        bar_readback[i] = readback;
         
         uint32_t command = pci_read(addr, sizeof(uint16_t),
                 offsetof(pci_config_hdr_t, command));
@@ -163,6 +182,156 @@ void set_bars(pci_addr const& addr, uint32_t &mm_next_place, uint32_t mm_limit,
 
         pci_write(addr, sizeof(uint16_t),
                 offsetof(pci_config_hdr_t, command), command);
+    }
+}
+
+struct pci_device_summary_t {
+    uint8_t bus = 0;            // < 16
+    uint8_t slot = 0;           // < 32
+    uint8_t func = 0;           // < 8
+    uint8_t reserved = 0;
+    
+    uint16_t vendor = 0;
+    uint16_t device = 0;
+    
+    uint8_t dev_class = 0;
+    uint8_t subclass = 0;
+    uint8_t prog_if = 0;
+    uint8_t revision = 0;
+    
+    uint64_t bars[5] = {};
+    uint64_t bar_sizes[5] = {};
+    bool is_io[5] = {};
+    uint8_t header_type = 0;
+    bool initialized = false;
+    
+    constexpr pci_device_summary_t() = default;
+    
+    constexpr pci_device_summary_t(
+        uint8_t bus, uint8_t slot, uint8_t func,
+        uint16_t vendor, uint16_t device,
+        
+        uint8_t dev_class, uint8_t subclass, 
+        uint8_t prog_if, uint8_t revision,
+        
+        uint8_t header_type)
+        : bus(bus)
+        , slot(slot)
+        , func(func)
+        , reserved(0)
+        , vendor(vendor)
+        , device(device)
+        , dev_class(dev_class)
+        , subclass(subclass)
+        , prog_if(prog_if)
+        , revision(revision)
+        , bars{}
+        , is_io{}
+        , header_type(header_type)
+        , initialized(false)
+    {    
+    }
+};
+
+static constexpr size_t device_limit = 128;
+static pci_device_summary_t devices[device_limit];
+size_t device_count;
+
+void pci_init()
+{
+    int bus_todo[256];
+    int *todo_end = bus_todo + 256;
+    int *todo_ptr = todo_end;
+
+    *--todo_ptr = 0;
+    
+    arch_mmio_range_t mmio_range = arch_mmio_range();
+
+    uint64_t mm_base = mmio_range.en;
+    uint32_t io_base = 0xf000;
+
+    while (todo_ptr < todo_end) {
+        int bus = *todo_ptr++;
+
+        for (int slot = 0; slot < 32; ++slot) {
+            int func_count = 1;
+
+            for (int func = 0; func < func_count; ++func) {
+                pci_addr addr{bus, slot, func};
+                
+                printdbg("Checking %d:%d:%d\n", bus, slot, func);
+
+                uint8_t header_type = pci_read(addr, sizeof(uint8_t),
+                            offsetof(pci_config_hdr_t, header_type));
+                
+                if (header_type == 0xFF)
+                    break;
+
+                if (func == 0) {
+                    bool multifunction = header_type & 0x80;
+
+                    // Extend function loop if header type says multifunction
+                    if (multifunction)
+                        func_count = 8;
+                }
+
+                uint16_t vendor = pci_read(addr, sizeof(uint16_t),
+                        offsetof(pci_config_hdr_t, vendor));
+
+                uint16_t device = pci_read(addr, sizeof(uint16_t),
+                        offsetof(pci_config_hdr_t, device));
+
+                uint8_t dev_class = pci_read(addr, sizeof(uint8_t),
+                        offsetof(pci_config_hdr_t, dev_class));
+
+                if (dev_class == 0xFF)
+                    break;
+
+                uint8_t subclass = pci_read(addr, sizeof(uint8_t),
+                        offsetof(pci_config_hdr_t, subclass));
+
+                uint8_t prog_if = pci_read(addr, sizeof(uint8_t),
+                        offsetof(pci_config_hdr_t, prog_if));
+
+                uint8_t revision = pci_read(addr, sizeof(uint8_t),
+                        offsetof(pci_config_hdr_t, revision));
+                
+                pci_device_summary_t &dev = devices[device_count++];
+                
+                dev = pci_device_summary_t(
+                        bus, slot, func, 
+                        vendor, device, 
+                        dev_class, subclass, prog_if, revision, 
+                        header_type);
+                
+                char const *description = pci_describe_device(
+                        dev_class, subclass, prog_if);
+                
+                printdbg("class=%x subclass=%x %s\n",
+                        dev_class, subclass, description);
+
+                if (dev_class == PCI_DEV_CLASS_BRIDGE &&
+                        subclass == PCI_SUBCLASS_BRIDGE_PCI2PCI) {
+                    uint8_t secondary_bus = pci_read(
+                            addr, sizeof(uint8_t),
+                            offsetof(pci_config_hdr_t, base_addr[2]) + 1);
+
+                    if (todo_ptr > bus_todo)
+                        *--todo_ptr = secondary_bus;
+                }
+                
+                if (!(header_type & 0x7F)) {
+                    uint32_t bar_alignments[5];
+                    uint64_t bar_readback[5];
+                    set_bars(addr, mm_base, mmio_range.st, io_base, 
+                            bar_readback, bar_alignments);
+                    for (size_t i = 0; i < 5; ++i) {
+                        dev.bar_sizes[i] = bar_alignments[i];
+                        dev.bars[i] = bar_readback[i];
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -646,4 +815,154 @@ char const *pci_describe_device(uint8_t cls, uint8_t sc, uint8_t pif)
     default:
         return "Unknown";
     }
+}
+
+#define PCI_BAR_FLAG_IO 1
+#define PCI_BAR_FLAG_64 4
+#define PCI_BAR_FLAG_PF 8
+
+const char *pci_device_description(size_t index)
+{
+    if (index >= device_count)
+        return nullptr;
+    
+    pci_device_summary_t const &dev = devices[index];
+    
+    return pci_describe_device(dev.dev_class, dev.subclass, dev.prog_if);
+}
+
+bool pci_raw_bar_is_64(uint64_t bar)
+{
+    return bar & PCI_BAR_FLAG_64;
+}
+
+static bool pci_is_valid_index_bar(size_t index, size_t bar)
+{
+    // If reading out of range device or bar, not valid
+    if (index >= device_count || bar >= 5)
+        return false;
+    
+    pci_device_summary_t const &dev = devices[index];
+    
+    // If reading high half of a 64 bit bar directly, not valid
+    if (bar > 0 && pci_raw_bar_is_64(dev.bars[bar - 1]))
+        return false;
+    
+    return true;
+}
+
+uint64_t pci_bar_get(size_t index, size_t bar)
+{
+    if (!pci_is_valid_index_bar(index, bar))
+        return false;
+    
+    pci_device_summary_t const &dev = devices[index];
+    
+    // Read two halves if it is 64 bit
+    if (pci_raw_bar_is_64(dev.bars[bar]) && bar < 4)
+        return dev.bars[bar] | (dev.bars[bar+1] << 32);
+    
+    // Read just one 32 bit one
+    return dev.bars[bar];
+}
+
+uint64_t pci_bar_get_base(size_t index, size_t bar)
+{
+    return pci_bar_get(index, bar) & -16;
+}
+
+bool pci_bar_is_io(size_t index, size_t bar)
+{
+    if (!pci_is_valid_index_bar(index, bar))
+        return false;
+    
+    pci_device_summary_t const &dev = devices[index];
+    
+    // Not sensible to read high half of 64 bit register directory
+    if (bar > 0 && pci_raw_bar_is_64(dev.bars[bar-1]))
+        return false;
+    
+    return dev.bars[bar] & PCI_BAR_FLAG_IO;
+}
+
+bool pci_bar_is_64(size_t index, size_t bar)
+{
+    if (!pci_is_valid_index_bar(index, bar))
+        return false;
+    
+    pci_device_summary_t const &dev = devices[index];
+    
+    return dev.bars[bar] & PCI_BAR_FLAG_64;
+}
+
+bool pci_bar_is_prefetchable(size_t index, size_t bar)
+{
+    if (!pci_is_valid_index_bar(index, bar))
+        return 0;
+    
+    pci_device_summary_t const &dev = devices[index];
+    
+    return dev.bars[bar] & PCI_BAR_FLAG_PF;
+}
+
+bool pci_space_enable(size_t index, bool memory_space, bool io_space)
+{
+    if (index >= device_count)
+        return false;
+    
+    pci_device_summary_t const &dev = devices[index];
+    
+    uint16_t command = pci_read(pci_addr(dev.bus, dev.slot, dev.func), 
+            sizeof(uint16_t), offsetof(pci_config_hdr_t, command));
+    
+    command = (command & ~(PCI_CMD_MSE | PCI_CMD_IOSE)) |
+        (-memory_space & PCI_CMD_MSE) |
+        (-io_space & PCI_CMD_IOSE);
+    
+    pci_write(pci_addr(dev.bus, dev.slot, dev.func), 
+            sizeof(uint16_t), offsetof(pci_config_hdr_t, command), 
+            command);
+    
+    return true;
+}
+
+size_t pci_enum_next_vendor_device(size_t after, 
+        uint16_t vendor, uint16_t device)
+{
+    size_t index = after;
+    while (++index < device_count) {
+        pci_device_summary_t const& dev = devices[index];
+        
+        if (dev.vendor == vendor && dev.device == device)
+            return index;
+    }
+    
+    return size_t(-1);
+}
+
+size_t pci_enum_next_class_subclass_progif(size_t after, 
+        int dev_class, int subclass, int progif, int revision)
+{
+    size_t index = after;
+    while (++index < device_count) {
+        pci_device_summary_t const& dev = devices[index];
+        
+        if ((dev_class < 0 || dev.dev_class == dev_class) &&
+                (subclass < 0 || dev.subclass == subclass) &&
+                (progif < 0 || dev.prog_if == progif) &&
+                (revision < 0 || dev.revision == revision))
+            return index;
+    }
+
+    return size_t(-1);
+}
+
+uint64_t pci_bar_size(size_t index, size_t bar)
+{
+    if (index >= device_count)
+        return false;
+    
+    pci_device_summary_t const &dev = devices[index];
+    
+    return dev.bar_sizes[bar];
 }

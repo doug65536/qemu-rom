@@ -19,9 +19,13 @@ all: emb-$(ARCH).rom
 .PHONY: all
 
 SOURCE_NAMES = \
-	arch/$(ARCH)/entry.S \
+	arch/$(ARCH)/entry_arch.S \
+	arch/$(ARCH)/halt_arch.cc \
+	arch/$(ARCH)/debug_arch.cc \
+	arch/$(ARCH)/exception_arch.S \
+	arch/$(ARCH)/context_arch.cc \
+	arch/$(ARCH)/portio_arch.cc \
 	arch/$(ARCH)/pci_arch.cc \
-	arch/$(ARCH)/portio.cc \
 	arch/pci.cc \
 	dispi.cc \
 	assert.cc \
@@ -46,7 +50,9 @@ $(DEPFILES):
 
 clean:
 	$(RM) -f emb-$(ARCH) \
-		emb-$(ARCH).\
+		emb-$(ARCH) \
+		emb-$(ARCH).rom \
+		emb-$(ARCH).map \
 		rom \
 		$(OBJECTS_ALL) \
 		$(DEPFILES) \
@@ -65,7 +71,10 @@ config:
 .PHONY: config
 
 reconfigure:
-	( source config.mk ; $(RM) -f config.mk ; $(SRC_DIR)/configure )
+	$(RM) -f config.mk && unset \
+		DEBUG_CON QEMU_MACHINE MARCH_FLAGS \
+		&& \
+		$(SRC_DIR)/configure
 
 .PHONY: reconfigure
 
@@ -89,7 +98,7 @@ ARCH_FLAGS_aarch64 =
 CXX_FLAGS_COMMON = \
 	-g \
 	-I$(SRC_DIR) \
-	-W -Wall -Wextra -Wpedantic -O0 \
+	-W -Wall -Wextra -Wpedantic -Werror -O0 \
 	-ffreestanding -fbuiltin \
 	-Werror=format -Werror=return-type \
 	-Wa,-g \
@@ -104,12 +113,11 @@ CXX_FLAGS_COMMON = \
 
 LINKFLAGS = $(CXX_FLAGS_COMMON) \
 	-o $@ \
-	-Wl,-T,"${SRC_DIR}/arch/$(ARCH)/emb.ld" \
+	-Wl,-T,"${SRC_DIR}/arch/$(ARCH)/rom_link_arch.ld" \
 	-Wl,-z,max-page-size=64 \
 	-Wl,-Map,$@.map \
 	$(MARCH_FLAGS) \
-	$(LIBGCC) \
-	-Wl,--orphan-handling,warn
+	$(LIBGCC)
 
 COMPILEFLAGS = \
 	$(CXX_FLAGS_COMMON) \
@@ -119,7 +127,7 @@ COMPILEFLAGS = \
 emb-$(ARCH): $(OBJECTS_ALL) Makefile config.mk
 	$(CXX) -o $@ $(OBJECTS_ALL) $(LINKFLAGS) $(LDFLAGS)
 
-emb-$(ARCH): ${SRC_DIR}/arch/$(ARCH)/emb.ld | Makefile config.mk
+emb-$(ARCH): ${SRC_DIR}/arch/$(ARCH)/rom_link_arch.ld Makefile config.mk
 
 emb-$(ARCH).rom: emb-$(ARCH)
 	$(OBJCOPY) --strip-debug -Obinary $< $@
@@ -151,7 +159,9 @@ $(foreach file,$(SOURCE_NAMES_CC), \
 $(foreach file,$(SOURCE_NAMES_S), \
 	$(eval $(call compile_extension,$(file),S)))
 
-TRACEFLAGS = \
+QEMUSMP = 4
+
+QEMUTRACEFLAGS = \
 	-trace 'pci*' 
 
 QEMUFLAGS = \
@@ -170,12 +180,12 @@ QEMUFLAGS = \
 		\
 		$(DEBUG_CON) \
 		\
-		-smp 4 \
+		-smp $(QEMUSMP) \
 		\
 		-no-reboot -no-shutdown $(QEMUEXTRAFLAGS)
 
 debug: emb-$(ARCH).rom
-	$(QEMU) -s -S $(TRACEFLAGS) $(QEMUFLAGS)
+	$(QEMU) -s -S $(QEMUTRACEFLAGS) $(QEMUFLAGS)
 
 .PHONY: debug-$(ARCH)
 

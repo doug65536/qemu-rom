@@ -22,7 +22,7 @@ ISA_DEBUGCON=$(printf "%s " \
     "-chardev stdio,id=debug-out")
 
 SERIAL_DEBUGCON=$(printf "%s " \
-    "-chardev stdio,id=debug-out")
+    "")
 
 case "$ARCH" in
 aarch64)

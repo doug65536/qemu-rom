@@ -4,13 +4,18 @@
 void little_formatterv_default(char *buffer, char **buffer_ptr, 
         size_t buffer_size, void *, int ch)
 {
+    if (ch == '\n') {
+        *(*buffer_ptr)++ = '\r';
+        *(*buffer_ptr) = 0;
+    }
+
     if (ch >= 0) {
         *(*buffer_ptr)++ = ch;
         *(*buffer_ptr) = 0;
     }
     
     size_t used = *buffer_ptr - buffer;
-    if (used + 1 >= buffer_size || ch == '\n' || ch == '\r' || ch == -1) {
+    if (ch == -1 || used + 1 >= (buffer_size - 4) || ch == '\n' ) {
         char *end = *buffer_ptr;
         
         // Reset buffer pointer

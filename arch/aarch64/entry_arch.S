@@ -1,6 +1,6 @@
 #include "cfi_helpers.h"
 
-.section .text.entry, "", @progbits
+.section .text.entry, "x", @progbits
 
 entry:
     ldr x0,=___initial_stack

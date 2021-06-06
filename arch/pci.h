@@ -12,6 +12,8 @@ struct pci_addr {
     int slot = 0;
     int func = 0;
     
+    constexpr pci_addr(int bus, int slot, int func)
+        : bus(bus), slot(slot), func(func) {}
     constexpr pci_addr() = default;
     constexpr pci_addr(pci_addr const&) = default;
     constexpr pci_addr &operator=(pci_addr const&) = default;
@@ -78,8 +80,8 @@ struct pci_config_hdr_t {
 char const *pci_describe_device(uint8_t cls, uint8_t sc, uint8_t pif);
 
 void set_bars(pci_addr const& addr,
-    uint32_t &mm_next_place, uint32_t mm_limit, 
-    uint32_t &io_next_place, uint32_t *alignments);
+    uint64_t &mm_next_place, uint64_t mm_limit, 
+    uint32_t &io_next_place, uint64_t *bar_readback, uint32_t *alignments);
 
 //
 // Low level 32-bit only configuration space accesses
@@ -365,3 +367,40 @@ void pci_write(pci_addr const& addr, size_t size, uint32_t offset,
 #define PCI_CMD_MSE 2
 #define PCI_CMD_IOSE 1
 
+extern "C"
+void pci_init();
+
+extern "C"
+size_t pci_device_count();
+
+extern "C"
+char const *pci_device_description(size_t index);
+
+extern "C"
+uint64_t pci_bar_get(size_t index, size_t bar);
+
+extern "C"
+uint64_t pci_bar_get_base(size_t index, size_t bar);
+
+extern "C"
+uint64_t pci_bar_size(size_t index, size_t bar);
+
+extern "C"
+bool pci_bar_is_io(size_t index, size_t bar);
+
+extern "C"
+bool pci_bar_is_64(size_t index, size_t bar);
+
+extern "C"
+bool pci_bar_is_prefetchable(size_t index, size_t bar);
+
+extern "C"
+bool pci_space_enable(size_t index, bool memory_space, bool io_space);
+
+extern "C"
+size_t pci_enum_next_vendor_device(size_t after, 
+    uint16_t vendor, uint16_t device);
+
+extern "C"
+size_t pci_enum_next_class_subclass_progif(size_t after, 
+    int dev_class, int subclass, int progif, int revision);

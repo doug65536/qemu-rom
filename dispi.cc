@@ -1,5 +1,6 @@
 #include "dispi.h"
 #include "debug.h"
+#include "arch/pci.h"
 
 // https://gitlab.com/qemu-project/qemu/-/blob/master/docs/specs/standard-vga.txt#L59
 
@@ -99,7 +100,7 @@ static constexpr size_t MAX_DISPLAYS = 8;
 static display_t displays[MAX_DISPLAYS];
 static size_t display_count;
 
-bool dispi_init(uintptr_t mmio_addr,
+bool dispi_add_device(uintptr_t mmio_addr,
         uintptr_t framebuffer_addr, size_t framebuffer_size)
 {
     if (display_count >= MAX_DISPLAYS)
@@ -217,5 +218,23 @@ bool dispi_set_pos(size_t index, int x, int y)
     displays[index].mmio_addr->vbe.x_offset = x;
     displays[index].mmio_addr->vbe.y_offset = y;
 
+    return true;
+}
+
+bool dispi_init()
+{
+    size_t index = -1;
+    do {
+        index = pci_enum_next_vendor_device(index, 0x1234, 0x1111);
+        if (index != size_t(-1)) {
+            uint64_t framebuffer_bar = pci_bar_get_base(index, 0);
+            uint64_t framebuffer_sz = pci_bar_size(index, 0);
+            uint64_t mmio_bar = pci_bar_get_base(index, 2);
+            
+            if (!dispi_add_device(mmio_bar, framebuffer_bar, framebuffer_sz))
+                return false;
+        }
+    } while (index != size_t(-1));
+    
     return true;
 }

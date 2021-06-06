@@ -41,13 +41,6 @@ void arch_pci_write(pci_addr const &addr, uint32_t offset, uint32_t value)
     *value_ptr = value;
 }
 
-static char volatile *plo11_base = (char volatile *)0x9000000;// len=0x1000
-
-void arch_debug_char(uint8_t ch)
-{
-    *plo11_base = ch;
-}
-
 void arch_halt()
 {
     while (true)

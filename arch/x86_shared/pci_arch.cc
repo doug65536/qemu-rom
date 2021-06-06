@@ -3,7 +3,7 @@
 #include <stdarg.h>
 #include "dispi.h"
 #include "debug.h"
-#include "portio.h"
+#include "portio_arch.h"
 #include "../pci.h"
 #include "assert.h"
 

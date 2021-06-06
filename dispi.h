@@ -3,7 +3,9 @@
 #include <stdint.h>
 #include <stddef.h>
 
-bool dispi_init(uintptr_t mmio_addr, 
+bool dispi_init();
+
+bool dispi_add_device(uintptr_t mmio_addr, 
         uintptr_t framebuffer_addr, size_t framebuffer_size);
 
 size_t dispi_display_count();
