@@ -19,17 +19,12 @@ all: emb-$(ARCH).rom
 .PHONY: all
 
 SOURCE_NAMES = \
-	arch/$(ARCH)/entry_arch.S \
-	arch/$(ARCH)/halt_arch.cc \
-	arch/$(ARCH)/debug_arch.cc \
-	arch/$(ARCH)/exception_arch.S \
-	arch/$(ARCH)/context_arch.cc \
-	arch/$(ARCH)/portio_arch.cc \
-	arch/$(ARCH)/pci_arch.cc \
+	$(CONFIG_SOURCES) \
 	arch/pci.cc \
 	dispi.cc \
 	assert.cc \
 	debug.cc \
+	string.cc \
 	main.cc
 
 SOURCE_NAMES_CC = $(filter %.cc,$(SOURCE_NAMES))
@@ -78,7 +73,7 @@ reconfigure:
 
 .PHONY: reconfigure
 
-config.mk: $(SRC_DIR)/configure
+config.mk: $(SRC_DIR)/configure $(SRC_DIR)/Makefile
 	$(SRC_DIR)/configure 
 
 Makefile: $(SRC_DIR)/Makefile
@@ -95,9 +90,12 @@ ARCH_FLAGS_x86_64 = \
 
 ARCH_FLAGS_aarch64 =
 
+QEMU_RAM = 8G
+
 CXX_FLAGS_COMMON = \
 	-g \
 	-I$(SRC_DIR) \
+	-I$(BUILD_INCLUDES) \
 	-W -Wall -Wextra -Wpedantic -Werror -O0 \
 	-ffreestanding -fbuiltin \
 	-Werror=format -Werror=return-type \
@@ -105,7 +103,7 @@ CXX_FLAGS_COMMON = \
 	-fno-exceptions -fno-asynchronous-unwind-tables \
 	-nostdlib \
 	-static \
-	-fpie \
+	-fPIE \
 	-Wl,--no-dynamic-linker \
 	-Wl,-m$(LINKER_EMULATION) \
 	-fno-common \
@@ -137,17 +135,17 @@ define compile_extension=
 # Preprocess, compile, and assemble to object file normally
 obj/$(patsubst %.$(2),%.o,$(1)): $(SRC_DIR)/$(1)
 	mkdir -p $$(@D)
-	$(CXX) -o $$@ -c $$< -MMD $(COMPILEFLAGS) $(CXXFLAGS)
+	$(CXX) -o $$@ -MMD $(COMPILEFLAGS) $(CXXFLAGS) -c $$<
 
 # Preprocess, compile, but do not assemble, and do not create object file
 obj/$(patsubst %.$(2),%.S,$(1)): $(SRC_DIR)/$(1)
 	mkdir -p $$(@D)
-	$(CXX) -o $$@ -S $$< -MMD $(COMPILEFLAGS) $(CXXFLAGS)
+	$(CXX) -o $$@ -MMD $(COMPILEFLAGS) $(CXXFLAGS) -S $$<
 
 # Preprocess only, do not compile, do not assemble, do not create object file
 obj/$(patsubst %.$(2),%.i,$(1)): $(SRC_DIR)/$(1)
 	mkdir -p $$(@D)
-	$(CXX) -o $$@ -E $$< -MMD $(COMPILEFLAGS) $(CXXFLAGS)
+	$(CXX) -o $$@ -MMD $(COMPILEFLAGS) $(CXXFLAGS) -E $$<
 
 obj/$(patsubst %.$(2),%.d,$(1)): $(patsubst %.$(2),%.o,$(1))
 
@@ -159,6 +157,8 @@ $(foreach file,$(SOURCE_NAMES_CC), \
 $(foreach file,$(SOURCE_NAMES_S), \
 	$(eval $(call compile_extension,$(file),S)))
 
+
+
 QEMUSMP = 4
 
 QEMUTRACEFLAGS = \
@@ -167,7 +167,8 @@ QEMUTRACEFLAGS = \
 QEMUFLAGS = \
 		-bios $< \
 		$(QEMU_MACHINE) \
-		-cpu max \
+		$(QEMU_CPU) \
+		-m $(QEMU_RAM) \
 		\
 		-vga none \
 		-device secondary-vga \
@@ -210,10 +211,12 @@ run-nogdb: emb-$(ARCH).rom
 .PHONY: run-nogdb
 
 attach: emb-$(ARCH)
-	$(GDB) \
+	$(GDB) $< \
+		$(GDB_EXTRA_STARTUP_CMD) \
 		-ex 'source ../../dgos/src/gdbhelpers' \
-		-ex 'target remote :1234' \
-		-ex 'symbol-file $<' $(GDB_EXTRA_STARTUP_CMD)
+		-ex 'target remote :1234'
+
+#-ex 'symbol-file $<'
 
 .PHONY: attach
 

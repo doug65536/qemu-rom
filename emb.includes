@@ -4,3 +4,8 @@ arch/x86_64
 arch/aarch64
 arch
 arch/x86_shared
+arch/riscv64
+machine/virt
+machine/sifive
+../build-riscv64-elf/build_includes
+../

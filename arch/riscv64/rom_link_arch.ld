@@ -3,23 +3,26 @@
 
 MEMORY {
     /* 512MB at +2MB */
-
-    /* 0000000000000000-0000000003ffffff (prio 0, romd): virt.flash0 */
-    rom      : org = 0x00000000, len = 0x4000000
     
-    /* 0000000004000000-0000000007ffffff (prio 0, romd): virt.flash1 */
-    nvram    : org = 0x04000000, len = 0x4000000
-
-    /* 0000000040000000-0000000047ffffff (prio 0, ram): mach-virt.ram */
-    ram  (w) : org = 0x40000000, len = 0x8000000
+    /* 1000-ffff (prio 0, rom): riscv.spike.mrom */
+    rom      : org = 0x1000, len = 0xf000
+    
+    /* 80000000-87ffffff */
+    /* but don't even touch 1st MB */
+    ram  (w) : org = 0x80100000, len = 0x7F00000
 }
 
 SECTIONS {
     /DISCARD/ : { *(.note.gnu.build-id); }
     /DISCARD/ : { *(.eh_frame); }
+    
+    /* The largest memory model can't reach RAM from ROM PC, 
+     * so copy everything to RAM on riscv64 */
 
-    /* First instruction fetched from ip=0 */
+    /* First instruction fetched from ip=0x1000 */
     .text : {
+        ___image_vma = ABSOLUTE(.);
+        ___image_lma = LOADADDR(.text);
         *(.text.entry);
         
         . = ALIGN(2K);
@@ -28,8 +31,8 @@ SECTIONS {
         *(.text);
         *(.text.*);
 
-        . = ALIGN(4K);
-    } >rom AT >rom
+        . = ALIGN(16K);
+    } >ram AT >rom
 
     .rodata : {
         *(.rodata);
@@ -44,8 +47,8 @@ SECTIONS {
         *(.rela.text.early);
         *(.rela.text.entry);
         *(.comment);
-        . = ALIGN(4K);
-    } >rom AT >rom =0
+        . = ALIGN(16K);
+    } >ram AT >rom =0
 
 /*    .debug : {    
         *(.debug_abbrev);
@@ -55,15 +58,16 @@ SECTIONS {
         *(.debug_line);
         *(.debug_ranges);
         *(.debug_str);
-    } >rom AT >rom = 0
+    } >ram AT >rom = 0
 */
     .data : {
-        ___data_vma = .;
         *(.data);
         *(.data.*);
-        ___data_end = .;
-        . = ALIGN(16);
-    } >ram AT >rom =0
+        . = ALIGN(16K);
+        ___image_end = ABSOLUTE(.);        
+    } >ram AT >ram =0
+    
+    . = ALIGN(16K);
 
     .bss (NOLOAD) : {
         ___bss_st = .;

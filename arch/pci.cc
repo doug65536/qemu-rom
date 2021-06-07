@@ -202,6 +202,7 @@ struct pci_device_summary_t {
     uint64_t bars[5] = {};
     uint64_t bar_sizes[5] = {};
     bool is_io[5] = {};
+    bool is_pf[5] = {};
     uint8_t header_type = 0;
     bool initialized = false;
     
@@ -227,6 +228,7 @@ struct pci_device_summary_t {
         , revision(revision)
         , bars{}
         , is_io{}
+        , is_pf{}
         , header_type(header_type)
         , initialized(false)
     {    
@@ -328,6 +330,8 @@ void pci_init()
                     for (size_t i = 0; i < 5; ++i) {
                         dev.bar_sizes[i] = bar_alignments[i];
                         dev.bars[i] = bar_readback[i];
+                        dev.is_io[i] = bar_readback[i] & PCI_BAR_FLAG_IO;
+                        dev.is_pf[i] = bar_readback[i] & PCI_BAR_FLAG_PF;
                     }
                 }
             }
@@ -816,10 +820,6 @@ char const *pci_describe_device(uint8_t cls, uint8_t sc, uint8_t pif)
         return "Unknown";
     }
 }
-
-#define PCI_BAR_FLAG_IO 1
-#define PCI_BAR_FLAG_64 4
-#define PCI_BAR_FLAG_PF 8
 
 const char *pci_device_description(size_t index)
 {

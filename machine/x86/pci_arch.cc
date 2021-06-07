@@ -4,7 +4,7 @@
 #include "dispi.h"
 #include "debug.h"
 #include "portio_arch.h"
-#include "../pci.h"
+#include "arch/pci.h"
 #include "assert.h"
 
 #define LEGACY_ACCESS_ADDR  0xcf8

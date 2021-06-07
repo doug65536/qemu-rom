@@ -1,8 +1,9 @@
 #include "arch/pci.h"
 #include "debug.h"
 #include "arch/halt.h"
+#include "build.config.h"
 
-static uint8_t * const ecam = (uint8_t *)0x4010000000;
+uint8_t volatile *ecam = (uint8_t*)ECAM_MMIO_ST;
 
 static size_t ecamofs(pci_addr const& addr, int bus_adj, size_t offset)
 {
@@ -39,10 +40,4 @@ void arch_pci_write(pci_addr const &addr, uint32_t offset, uint32_t value)
     uint32_t volatile *value_ptr = (uint32_t *)(ecam + ecam_offset);
     
     *value_ptr = value;
-}
-
-void arch_halt()
-{
-    while (true)
-        __asm__("wfi");
 }

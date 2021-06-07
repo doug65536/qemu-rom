@@ -364,8 +364,14 @@ void pci_write(pci_addr const& addr, size_t size, uint32_t offset,
 #define PCI_VENDOR_INTEL    0x8086
 #define PCI_VENDOR_ENSONIQ  0x1274
 
+// config header command register/field bits
 #define PCI_CMD_MSE 2
 #define PCI_CMD_IOSE 1
+
+// Low bits of BARs
+#define PCI_BAR_FLAG_IO 1
+#define PCI_BAR_FLAG_64 4
+#define PCI_BAR_FLAG_PF 8
 
 extern "C"
 void pci_init();
