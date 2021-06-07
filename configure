@@ -351,6 +351,7 @@ declare -a PASSTHRU=(
     "MARCH_FLAGS"
     "LINKER_EMULATION"
     "QEMU_MACHINE"
+    "QEMU_CPU"
     "HOSTOS"
     "SRC_DIR"
     "COMPILER_PREFIX"
