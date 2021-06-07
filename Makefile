@@ -220,4 +220,9 @@ attach: emb-$(ARCH)
 
 .PHONY: attach
 
+toolchain_hint:
+	echo "$${CXX%/*}"
+
+.PHONY: toolchain_hint
+
 -include $(DEPFILES)
