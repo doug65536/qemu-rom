@@ -55,8 +55,8 @@ Notice how vague I was? We just dynamically detect it
     you@yourcomputer:~/somewhere-good/qemu-rom/
     $ PATH=$toolchain_bin:$PATH
     
-Now you have (or skipped here because you already had) a toolchain
-    
+## You have a toolchain
+
     you@yourcomputer:~/somewhere-good/qemu-rom/
     $ mkdir build-aarch64
     
