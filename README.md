@@ -11,19 +11,22 @@ compilation and linking process.
 ## Instructions
 
     you@yourcomputer:~/somewhere-good
-    $ git clone https://github.com/doug65536/qemu-rom.git
-
-Source now at ~/somewhere-good/qemu-rom/
-
-## If you need toolchain(s)
-
-Get a script you can use to quickly build a cross toolchain
-
-    you@yourcomputer:~/somewhere-good
     $ mkdir qemu-rom
     
     you@yourcomputer:~/somewhere-good
     $ cd qemu-rom
+    
+    you@yourcomputer:~/somewhere-good/qemu-rom
+    $ git clone https://github.com/doug65536/qemu-rom.git src
+    
+    you@yourcomputer:~/somewhere-good/qemu-rom
+    $ cd qemu-rom
+    
+Source now at ~/somewhere-good/qemu-rom/src/
+
+## If you need toolchain(s)
+
+Get a script you can use to quickly build a cross toolchain
     
     you@yourcomputer:~/somewhere-good/qemu-rom
     git clone https://github.com/travisg/toolchains.git
@@ -33,7 +36,7 @@ Get a script you can use to quickly build a cross toolchain
 
     you@yourcomputer:~/somewhere-good/qemu-rom/toolchains
     $ 
-
+    
 Build an architecture, many architecture names work. The example
 command line creates `~/somewhere-good/qemu-rom/tools/aarch64-elf-Linux_x86_64` or
 something like that.
@@ -56,7 +59,7 @@ Notice how vague I was? We just dynamically detect it
     $ PATH=$toolchain_bin:$PATH
     
 ## You have a toolchain
-
+    
     you@yourcomputer:~/somewhere-good/qemu-rom/
     $ mkdir build-aarch64
     
@@ -64,7 +67,7 @@ Notice how vague I was? We just dynamically detect it
     $ cd build-aarch64
     
     you@yourcomputer:~/somewhere-good/qemu-rom/build-aarch64
-    $ ../qemu-rom/configure --host=aarch64-elf
+    $ ../src/configure --host=aarch64-elf
     
     you@yourcomputer:~/somewhere-good/qemu-rom/build-aarch64
     $ make run -j$(nproc)
