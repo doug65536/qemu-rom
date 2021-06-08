@@ -31,6 +31,9 @@ Get a script you can use to quickly build a cross toolchain
     you@yourcomputer:~/somewhere-good/qemu-rom
     $ cd toolchains
 
+    you@yourcomputer:~/somewhere-good/qemu-rom/toolchains
+    $ 
+
 Build an architecture, many architecture names work. The example
 command line creates `~/somewhere-good/qemu-rom/tools/aarch64-elf-Linux_x86_64` or
 something like that.
@@ -80,6 +83,4 @@ To launch toolchain gdb attached to qemu (presumably the one from `make debug`)
     
     you@yourcomputer:~/somewhere-good/qemu-rom/build-aarch64
     $ make attach
-    
-
     
