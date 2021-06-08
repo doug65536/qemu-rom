@@ -67,17 +67,17 @@ Notice how vague I was? We just dynamically detect it
     $ ../qemu-rom/configure --host=aarch64-elf
     
     you@yourcomputer:~/somewhere-good/qemu-rom/build-aarch64
-    $ make run -j$(nroc)
+    $ make run -j$(nproc)
     
 To launch vm with debugging completely disabled (no fighting over port 1234)
     
     you@yourcomputer:~/somewhere-good/qemu-rom/build-aarch64
-    $ make run -j$(nroc)
+    $ make run -j$(nproc)
     
 To launch vm for debugging
     
     you@yourcomputer:~/somewhere-good/qemu-rom/build-aarch64
-    $ make debug -j$(nroc)
+    $ make debug -j$(nproc)
     
 To launch toolchain gdb attached to qemu (presumably the one from `make debug`)
     
