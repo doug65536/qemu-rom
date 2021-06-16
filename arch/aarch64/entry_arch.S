@@ -3,6 +3,10 @@
 .section .text.entry, "x", @progbits
 
 entry:
+    .cfi_startproc simple
+    .cfi_def_cfa CFI_SP,0
+    .cfi_undefined CFI_PC    
+    
     ldr x0,=___initial_stack
     mov sp,x0
     
@@ -25,7 +29,7 @@ entry:
 .Lis_el2:   // TODO
 
 .Ldone_el_init:
-    # Go sleep if not BSP
+    // Go sleep if not BSP
     mrs x0,MPIDR_EL1
     and x0,x0,#0xff
     cbnz x0,idle_trap
@@ -52,6 +56,19 @@ idle_trap:
     msr daifset,#0xF
     wfi
     b idle_trap
+
+call_ctors:
+    ldr x20,=__init_array_start
+    ldr x21,=__init_array_end
+.Lcall_another_ctor:
+    ldr x0,[x20],#8
+    cbz x0,.Ldone_ctor
+    blr x0
+    cmp x20,x21
+    b.lt .Lcall_another_ctor
+.Ldone_ctor:
+
+    .cfi_endproc
 
 .macro vbar_entry_stub vbar_ofs
 .cfi_startproc simple

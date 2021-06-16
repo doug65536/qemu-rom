@@ -1,0 +1,63 @@
+#!/bin/bash
+
+toolchain_loc=$(realpath "${1:=/}")
+toolchain_os="${2:-elf}"
+#echo loc=${toolchain_loc}
+#echo os=${toolchain_os}
+
+declare -a paths=()
+while read line; do
+    # Remove path
+    filename="${line##*/}"
+    #echo filename=${filename}
+    
+    # Extract the version to split target and host
+    version_regex='[0-9]+\.[0-9]+\.[0-9]+'
+    [[ $filename =~ $version_regex ]] \
+        && ver="${BASH_REMATCH[0]}" \
+        || continue
+    #echo ver=${ver}
+    
+    # Use the version to strip off host part
+    target_tuple="${filename%*-${ver}*}"
+    #echo target_tuple=${target_tuple}
+    
+    # Use the tuple to get host part
+    host_tuple="${filename#${target_tuple}-}"
+    #echo host_tuple=${host_tuple}
+    
+    [[ -z filename || -z target_tuple || -z host_tuple ]] && continue
+    
+    paths[${#paths[@]}]="${line}/bin"
+done < <("${FIND:-find}" "${toolchain_loc}" \
+    -maxdepth 1 -name "*-${toolchain_os}-*" )
+
+prepend="${PATH}"
+
+for path in "${paths[@]}"; do
+    prepend="${path}:${prepend}"
+done
+
+
+# Twice as simple way to correct the order
+for pass in {0..1}; do
+    result=
+    declare -A seen=()
+    while true; do
+        item="${prepend%%:*}"
+    
+        if [[ ${seen[${item}]} != "1" ]]; then
+            seen[${item}]=1
+            [[ -z $result ]] \
+                && result="${item}" \
+                || result="${item}:${result}"
+        else
+            printf 'dropped duplicate: %s\n' "${item}" 1>&2
+        fi
+        
+        [[ ${prepend} =~ : ]] && prepend="${prepend#*:}" || break
+    done
+    prepend=${result}
+done
+
+printf 'PATH=%s\n' "${result}"

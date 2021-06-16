@@ -7,13 +7,13 @@ MEMORY {
     ram          (w) : org = 0x100200000, len = 0x10000000
 
     /* -2M */
-    rom       (rxai) : org = 0x0FFE00000, len = 0x200000
+    rom       (rxai) : org = 0x0FFE00000, len =   0x1f0000
 
     /* -64K */
-    early            : org = 0x0FFFF0000, len = 0x10000
+    early            : org = 0x0FFFF0000, len =    0x0FFF0
 
     /* -16 */
-    entry            : org = 0x0FFFFFFF0, len = 0x10
+    entry            : org = 0x0FFFFFFF0, len =       0x10
 }
 
 SECTIONS {
@@ -29,12 +29,10 @@ SECTIONS {
     /* Initial cs.base=0xFFFF0000, so have a region for that top 64K */
     .text.early : {
         *(.text.early);
-        . = ALIGN(4K);
     } >early AT >early
-
+    
     .rodata.early : {
         *(.rodata.early);
-        . = ALIGN(4K);
     } >early AT >early =0
 
     .rodata : {
@@ -49,26 +47,22 @@ SECTIONS {
         *(.rela.iplt);
         *(.rela.text.early);
         *(.comment);
-        . = ALIGN(4K);
     } >rom AT >rom =0
 
     .text : {
         *(.text.align4k);
         *(.text);
         *(.text.*);
-
-        . = ALIGN(4K);
     } >rom AT >rom
 
     .data : {
-        ___data_vma = .;
+        ___data_vma = ABSOLUTE(.);
         *(.data);
         *(.data.*);
-        ___data_end = .;
-        . = ALIGN(4K);
+        ___data_end = ABSOLUTE(.);
     } >ram AT >rom =0
 
-    .debug : {    
+/*    /DISCARD/ 0 : {    
         *(.debug_abbrev);
         *(.debug_aranges);
         *(.debug_frame);
@@ -76,7 +70,8 @@ SECTIONS {
         *(.debug_line);
         *(.debug_ranges);
         *(.debug_str);
-    } >rom AT >rom = 0
+    }
+*/
 
     .bss (NOLOAD) : {
         ___bss_st = .;

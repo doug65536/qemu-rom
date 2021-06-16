@@ -7,5 +7,13 @@ arch/x86_shared
 arch/riscv64
 machine/virt
 machine/sifive
-../build-riscv64-elf/build_includes
+../autopilot/rombuild-mips64el/build_includes
 ../
+arch/ppc
+machine
+driver/pci/port_io
+driver/display/dispi
+driver/pci/indexed_io
+driver/debug
+arch/mips64el
+math

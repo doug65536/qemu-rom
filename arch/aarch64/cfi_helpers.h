@@ -211,13 +211,30 @@
 .endm
 
 .macro push_lr_fp_adj sp_adj
-    sub sp,sp,sp_adj
-    stp x30,x29,[sp, stp_adj-16]
+    //  0 <- SP-relative CFA
+    // -1 caller pc
+    // -2 caller frame
+    // 
+    // then,
+    // +1 caller pc
+    // +0 caller frame <- x29-relative CFA
+    // ...
+    
+    .cfi_startproc
+    .cfi_def_cfa CFI_SP,0
+    sub sp,sp,\sp_adj
+    .cfi_adjust_cfa_offset \sp_adj
+    
+    stp x29,x30,[sp, \stp_adj - 16]
+    .cfi_adjust_cfa_offset 16
+    
     mov x29,sp
+    .cfi_def_cfa CFI_X29,\sp_adj + 0
+    .cfi_offset CFI_X30,\sp_adj + 8
 .endm
 
 .macro pop_lr_fp_adj sp_adj
-    ldp x30,x29,[sp, stp_adj-16]
+    ldp x30,x29,[sp, \stp_adj-16]
     mov sp,x29
 .endm
 

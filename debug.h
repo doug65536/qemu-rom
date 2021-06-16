@@ -17,6 +17,9 @@ intptr_t little_formatterv(
         char const *format, 
         va_list ap);
 
+void little_formatterv_default(char *buffer, char **buffer_ptr, 
+        size_t buffer_size, void *, int ch);
+
 extern "C" 
 _printf_format(1, 0)
 intptr_t vprintdbg(char const *format, va_list ap);

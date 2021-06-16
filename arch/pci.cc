@@ -3,6 +3,9 @@
 #include "debug.h"
 #include "assert.h"
 
+static pci_ready_node_t *pci_ready_node_first;
+static bool pci_ready_already;
+
 uint32_t pci_read(pci_addr const& addr, uint32_t size, uint32_t offset)
 {
     // Fastpath easy stuff
@@ -337,6 +340,8 @@ void pci_init()
             }
         }
     }
+    
+    pci_notify_pci_ready();
 }
 
 char const *pci_describe_device(uint8_t cls, uint8_t sc, uint8_t pif)
@@ -831,7 +836,7 @@ const char *pci_device_description(size_t index)
     return pci_describe_device(dev.dev_class, dev.subclass, dev.prog_if);
 }
 
-bool pci_raw_bar_is_64(uint64_t bar)
+static bool pci_raw_bar_is_64(uint64_t bar)
 {
     return bar & PCI_BAR_FLAG_64;
 }
@@ -965,4 +970,48 @@ uint64_t pci_bar_size(size_t index, size_t bar)
     pci_device_summary_t const &dev = devices[index];
     
     return dev.bar_sizes[bar];
+}
+
+void pci_when_pci_ready(pci_ready_node_t *node, 
+        pci_ready_callback_t callback, void *callback_arg)
+{
+    if (pci_ready_already)
+        return callback(callback_arg);
+    
+    // Link node into chain
+    assert(node->magic == node->expected_magic);
+    node->callback = callback;
+    node->callback_arg = callback_arg;
+    node->next = pci_ready_node_first;
+    pci_ready_node_first = node;
+}
+
+void pci_notify_pci_ready()
+{
+    assert(!pci_ready_already);
+    if (pci_ready_already)
+        return;
+    
+    // Walk the chain, reversing the order of the links on the way
+    pci_ready_node_t *prev = nullptr;
+    pci_ready_node_t *curr = pci_ready_node_first;
+    
+    // Reverse the order of the chain
+    while (curr) {
+        assert(curr->magic == curr->expected_magic);
+        pci_ready_node_t *save_next = curr->next;
+        curr->next = prev;
+        prev = curr;
+        curr = save_next;
+    }
+    curr = prev;
+    
+    // Execute the items in the order they were added
+    while (curr) {
+        assert(curr->magic == curr->expected_magic);
+        curr->callback(curr->callback_arg);
+        curr = curr->next;
+    }
+    
+    pci_ready_already = true;
 }

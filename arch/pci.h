@@ -410,3 +410,33 @@ size_t pci_enum_next_vendor_device(size_t after,
 extern "C"
 size_t pci_enum_next_class_subclass_progif(size_t after, 
     int dev_class, int subclass, int progif, int revision);
+
+typedef void (*pci_ready_callback_t)(void *);
+
+struct pci_ready_node_t {
+    static constexpr size_t expected_magic = 
+        uintptr_t(0x7964616572696370 & UINTPTR_MAX);
+    
+    size_t magic = expected_magic;
+    pci_ready_node_t *next = nullptr;
+    pci_ready_callback_t callback = nullptr;
+    void *callback_arg = nullptr;
+    
+    constexpr pci_ready_node_t() = default;
+    
+    constexpr pci_ready_node_t(pci_ready_callback_t callback, 
+            void *callback_arg = nullptr)
+        : callback(callback)
+        , callback_arg(callback_arg)
+    {
+    }
+           
+    constexpr pci_ready_node_t(pci_ready_node_t const &) = default;
+    
+    ~pci_ready_node_t() = default;
+};
+
+void pci_when_pci_ready(pci_ready_node_t *node, 
+        pci_ready_callback_t callback, void *);
+
+void pci_notify_pci_ready();

@@ -9,23 +9,123 @@ ifeq ($(ARCH),)
   $(error Invalid configuration, no ARCH)
   
   ifneq $($(SRC_DIR),)
-    $(shell "$(SRC_DIR)/configure)
+	$(shell "$(SRC_DIR)/configure)
   endif
 
 endif
 
-all: emb-$(ARCH).rom
+BIOS_FILENAME = emb-$(ARCH).rom
+
+ifneq ($(BIOS_IS_ELF),0)
+BIOS_FILENAME = emb-$(ARCH)
+endif
+
+$(info BIOS_FILENAME=$(BIOS_FILENAME))
+$(info BIOS_IS_ELF=$(BIOS_IS_ELF))
+
+all: $(BIOS_FILENAME)
 
 .PHONY: all
 
-SOURCE_NAMES = \
-	$(CONFIG_SOURCES) \
-	arch/pci.cc \
-	dispi.cc \
-	assert.cc \
-	debug.cc \
-	string.cc \
-	main.cc
+GDB_EXTRA_STARTUP_CMD=
+
+MATH_SOURCE_NAMES = \
+    math/sincos.cc \
+    math/truncf.cc
+
+ARCH_SOURCE_NAMES = \
+    assert.cc \
+    debug.cc \
+    string.cc \
+    vec.cc \
+    render.cc \
+    polygon.cc \
+    main.cc
+
+DISPI_SOURCE_NAMES = \
+    dispi.cc
+
+PCIMMIO_SOURCE_NAMES = \
+    arch/pci.cc \
+
+ARCH_SOURCE_NAMES_x86_64 = \
+    machine/x86/entry_arch.S \
+    arch/x86_64/exception_arch.S \
+    arch/pci.cc \
+    driver/pci/port_io/pci_arch.cc \
+    machine/x86/halt_arch.cc \
+    machine/x86/debug_arch.cc \
+    driver/display/dispi/dispi.cc \
+    driver/display/dispi/dispi_pci.cc
+
+ARCH_SOURCE_NAMES_i386 = \
+    machine/x86/entry_arch.S \
+    arch/i386/context_arch.cc \
+    arch/pci.cc \
+    driver/pci/port_io/pci_arch.cc \
+    machine/x86/halt_arch.cc \
+    machine/x86/debug_arch.cc \
+    driver/display/dispi/dispi.cc \
+    driver/display/dispi/dispi_pci.cc
+
+ARCH_SOURCE_NAMES_aarch64 = \
+    arch/aarch64/entry_arch.S \
+    arch/aarch64/halt_arch.cc \
+    arch/aarch64/exception_arch.S \
+    machine/virt/debug_arch.cc \
+    arch/pci.cc \
+    driver/pci/ecam/pci_arch.cc \
+    driver/display/dispi/dispi.cc \
+    driver/display/dispi/dispi_pci.cc
+
+ARCH_SOURCE_NAMES_ppc = \
+    arch/ppc/entry_arch_s.S \
+    arch/ppc/halt_arch.cc \
+    arch/pci.cc \
+    driver/debug/pci_serial.cc \
+    driver/pci/indexed_io/pci_arch.cc \
+    driver/display/dispi/dispi.cc \
+    driver/display/dispi/dispi_pci.cc
+
+ARCH_SOURCE_NAMES_mips64el = \
+    arch/mips64el/entry_arch.S \
+    arch/mips64el/halt_arch.cc \
+    arch/pci.cc \
+    driver/debug/pci_serial.cc \
+    driver/pci/indexed_io/pci_arch.cc \
+    driver/display/dispi/dispi.cc \
+    driver/display/dispi/dispi_pci.cc
+
+ARCH_SOURCE_NAMES_riscv64 = \
+    arch/pci_null.cc \
+    machine/sifive/halt_arch.cc \
+    machine/virt/debug_arch.cc \
+    driver/display/dispi/dispi.cc
+
+ARCH_SOURCE_NAMES_m68k =
+
+#MACHINE_SOURCE_NAMES_x86 = \
+#    machine/x86/entry_arch.S \
+#    machine/x86/halt_arch.cc \
+#    machine/x86/pci_arch.cc \
+#    machine/x86/portio_arch.cc \
+#    machine/virt/debug_arch.cc
+#
+#MACHINE_SOURCE_NAMES_virt = \
+#    machine/virt/debug_arch.cc \
+#    machine/virt/pci_arch.cc \
+#    machine/virt/portio_arch.cc
+#
+#MACHINE_SOURCE_NAMES_sifive = \
+#    machine/sifive/pci_arch.cc \
+#    machine/sifive/halt_arch.cc \
+#    machine/virt/debug_arch.cc
+
+SOURCE_NAMES += \
+    $(ARCH_SOURCE_NAMES) \
+    $(ARCH_SOURCE_NAMES_$(ARCH))
+
+#$(MACHINE_SOURCE_NAMES_$(MACHINE))
 
 SOURCE_NAMES_CC = $(filter %.cc,$(SOURCE_NAMES))
 SOURCE_NAMES_S = $(filter %.S,$(SOURCE_NAMES))
@@ -86,28 +186,30 @@ ARCH_FLAGS_i386 = \
 	-m32 -Wa,--32
 
 ARCH_FLAGS_x86_64 = \
-	-mno-red-zone
+	-mno-red-zone -fPIE
 
 ARCH_FLAGS_aarch64 =
 
-QEMU_RAM = 8G
+QEMU_RAM ?= 1536M
 
 CXX_FLAGS_COMMON = \
 	-g \
 	-I$(SRC_DIR) \
 	-I$(BUILD_INCLUDES) \
 	-W -Wall -Wextra -Wpedantic -Werror -O0 \
+	-Wdouble-promotion -Wmissing-declarations \
 	-ffreestanding -fbuiltin \
 	-Werror=format -Werror=return-type \
 	-Wa,-g \
 	-fno-exceptions -fno-asynchronous-unwind-tables \
 	-nostdlib \
 	-static \
-	-fPIE \
 	-Wl,--no-dynamic-linker \
 	-Wl,-m$(LINKER_EMULATION) \
 	-fno-common \
 	$(ARCH_FLAGS_$(ARCH))
+
+#-fPIE
 
 LINKFLAGS = $(CXX_FLAGS_COMMON) \
 	-o $@ \
@@ -116,6 +218,8 @@ LINKFLAGS = $(CXX_FLAGS_COMMON) \
 	-Wl,-Map,$@.map \
 	$(MARCH_FLAGS) \
 	$(LIBGCC)
+
+#-Wl,--orphan-handling,warn
 
 COMPILEFLAGS = \
 	$(CXX_FLAGS_COMMON) \
@@ -141,11 +245,13 @@ obj/$(patsubst %.$(2),%.o,$(1)): $(SRC_DIR)/$(1)
 obj/$(patsubst %.$(2),%.S,$(1)): $(SRC_DIR)/$(1)
 	mkdir -p $$(@D)
 	$(CXX) -o $$@ -MMD $(COMPILEFLAGS) $(CXXFLAGS) -S $$<
+	$(LESS) $$@
 
 # Preprocess only, do not compile, do not assemble, do not create object file
 obj/$(patsubst %.$(2),%.i,$(1)): $(SRC_DIR)/$(1)
 	mkdir -p $$(@D)
 	$(CXX) -o $$@ -MMD $(COMPILEFLAGS) $(CXXFLAGS) -E $$<
+	$(LESS) $$@
 
 obj/$(patsubst %.$(2),%.d,$(1)): $(patsubst %.$(2),%.o,$(1))
 
@@ -156,10 +262,6 @@ $(foreach file,$(SOURCE_NAMES_CC), \
 
 $(foreach file,$(SOURCE_NAMES_S), \
 	$(eval $(call compile_extension,$(file),S)))
-
-
-
-QEMUSMP = 4
 
 QEMUTRACEFLAGS = \
 	-trace 'pci*' 
@@ -181,16 +283,16 @@ QEMUFLAGS = \
 		\
 		$(DEBUG_CON) \
 		\
-		-smp $(QEMUSMP) \
+		-smp $(QEMU_SMP) \
 		\
 		-no-reboot -no-shutdown $(QEMUEXTRAFLAGS)
 
-debug: emb-$(ARCH).rom
+debug: $(BIOS_FILENAME)
 	$(QEMU) -s -S $(QEMUTRACEFLAGS) $(QEMUFLAGS)
 
 .PHONY: debug-$(ARCH)
 
-run: emb-$(ARCH).rom
+run: $(BIOS_FILENAME)
 	$(QEMU) -s $(QEMUFLAGS)
 
 .PHONY: run
@@ -205,7 +307,7 @@ objdump: emb-$(ARCH)
 
 .PHONY: objdump
 
-run-nogdb: emb-$(ARCH).rom
+run-nogdb: $(BIOS_FILENAME)
 	$(QEMU) $(QEMUFLAGS)
 
 .PHONY: run-nogdb
@@ -221,8 +323,13 @@ attach: emb-$(ARCH)
 .PHONY: attach
 
 toolchain_hint:
-	echo "$${CXX%/*}"
+	@echo "$${CXX%/*}"
 
 .PHONY: toolchain_hint
+
+toolchain_path:
+	@echo "PATH=$${CXX%/*}:\$$PATH"
+
+.PHONY: toolchain_path
 
 -include $(DEPFILES)

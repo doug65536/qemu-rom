@@ -17,4 +17,4 @@
 #define _printf_format(...)
 #endif
 
-
+#define _constructor(prio) __attribute__((__constructor__(prio)))

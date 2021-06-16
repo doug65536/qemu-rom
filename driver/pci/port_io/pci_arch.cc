@@ -1,9 +1,8 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdarg.h>
-#include "dispi.h"
 #include "debug.h"
-#include "portio_arch.h"
+#include "machine/x86/portio_arch.h"
 #include "arch/pci.h"
 #include "assert.h"
 

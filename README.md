@@ -22,7 +22,7 @@ compilation and linking process.
     you@yourcomputer:~/somewhere-good/qemu-rom
     $ cd qemu-rom
     
-Source now at ~/somewhere-good/qemu-rom/src/
+Source now at `~/somewhere-good/qemu-rom/src/`
 
 ## If you need toolchain(s)
 
@@ -38,8 +38,8 @@ Get a script you can use to quickly build a cross toolchain
     $ 
     
 Build an architecture, many architecture names work. The example
-command line creates `~/somewhere-good/qemu-rom/tools/aarch64-elf-Linux_x86_64` or
-something like that.
+command line creates `~/somewhere-good/qemu-rom/tools/aarch64-elf-Linux_x86_64` *or
+something like that* (read on below).
     
     you@yourcomputer:~/somewhere-good/qemu-rom/toolchains
     $ mkdir -p $PWD/../tools && ./doit -a aarch64 -f -o $PWD/../tools
@@ -75,7 +75,7 @@ Notice how vague I was? We just dynamically detect it
 To launch vm with debugging completely disabled (no fighting over port 1234)
     
     you@yourcomputer:~/somewhere-good/qemu-rom/build-aarch64
-    $ make run -j$(nproc)
+    $ make run-nogdb -j$(nproc)
     
 To launch vm for debugging
     
@@ -87,3 +87,6 @@ To launch toolchain gdb attached to qemu (presumably the one from `make debug`)
     you@yourcomputer:~/somewhere-good/qemu-rom/build-aarch64
     $ make attach
     
+## QEMU configuration
+
+You can override 

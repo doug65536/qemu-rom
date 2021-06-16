@@ -1,9 +1,9 @@
 #include "arch/pci.h"
 #include "debug.h"
 #include "arch/halt.h"
-#include "build.config.h"
+#include "config.h"
 
-uint8_t volatile *ecam = (uint8_t*)ECAM_MMIO_ST;
+uint8_t volatile *ecam = (uint8_t*)ECAM_ST;
 
 static size_t ecamofs(pci_addr const& addr, int bus_adj, size_t offset)
 {

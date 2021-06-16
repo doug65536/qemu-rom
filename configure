@@ -1,9 +1,37 @@
 #!/bin/bash
+>wtf.log    #FIXME**********************************************
 #set -x
+
+>configure.log
+
+verbose=1
+
+# Reopen stdout as 3 so we can speak to the user while being logged
+exec 3<>/dev/stderr
+
 function fail() {
     echo Failed: "$@" 1>&2
     exit 1
 }
+
+logfile="configure.log"
+
+function log() {
+    if [[ $verbose != 0 ]]; then
+        "$@" 2>&1 | tee -a "${logfile}" || exit
+    else
+        "$@" 2>&1 > "${logfile}" || exit    
+    fi
+}
+
+#
+# Find myself
+
+ABS_SRC_DIR="$( cd "$( dirname \
+        "${BASH_SOURCE[0]}" )"&> /dev/null && pwd )" || exit
+
+SRC_DIR=$("${REALPATH:-realpath}" --relative-to="." "$ABS_SRC_DIR") || \
+        fail 'Unable to deduce relative path to source'
 
 #
 # Process arguments
@@ -13,14 +41,48 @@ function removeswitch() { echo ${2#$1} ; }
 
 WHICH=${WHICH:-which}
 WHICH=$("$WHICH" -- "$WHICH") || \
-		fail Error getting full path to \"which\"
+		fail "Error getting full path to \"which\""
 
 if [[ -z $NPROC ]]; then
 	NPROC=$("$WHICH" -- nproc)
 fi
 
+function generate_toolchain() {
+	log "${MKDIR:-mkdir}" -p tools || exit
+	cd tools || exit
+	
+	# If there is no toolchain factory
+	if [[ ! -d toolchains ]]; then
+		# Create a toolchain factory
+		url="${TOOLCHAINS_URL:-https://github.com/travisg/toolchains.git}"
+		log "${GIT:-git}" clone "${url}" || exit
+	fi
+	
+	# Try to find already built toolchain
+	toolchain_root="$("${FIND:-find}" \
+		"$PWD" -maxdepth 1 -name "$1-*")" || exit
+	
+	echo "toolchain_root=${toolchain_root}" >&3
+	
+	if [[ ! -f "${toolchain_root}/${COMPILER_PREFIX}g++" ]]; then
+		cd toolchains || exit
+		log ./doit -q -f -a "$1" \
+			-o "$PWD/.." > "doit.log" 2>&1 || exit
+		
+		cd .. || exit
+		toolchain_root="$("${FIND:-find}" \
+			"$PWD" -maxdepth 1 -name "$1-*")" || exit
+	else
+		echo 'Already have compiler' >&3
+	fi
+	
+	toolchain_bin="${toolchain_root}/bin"
+	
+	printf 'toolchain_bin=%s\n' "${toolchain_bin}" >&3
+	printf '%s' "${toolchain_bin}" || exit
+}
+
 while [[ -n $1 ]]; do
-    echo Checking "$1"    
     case "$1" in
     --host)
         HOST=$2
@@ -29,7 +91,7 @@ while [[ -n $1 ]]; do
     
     --host=*)
         HOST=$(removeswitch --host= "$1")
-        echo Got "--host=$HOST"
+        printf 'Host set to %s\n' "${HOST}"
         ;;
     
     --enable-optimize)
@@ -42,6 +104,45 @@ while [[ -n $1 ]]; do
     
     --enable-lto3)
         CXXFLAGS+=" -O3 -flto=$("$NPROC")"
+        ;;
+    --autopilot*)
+        #mips mips64 sh4eb xtensaeb
+        [[ $1 == '--autopilot=max' ]] \
+            && declare -a arch_list=( \
+                x86_64 i386 aarch64 riscv64 riscv32 alpha \
+                mips64el mipsel sh4 arm sparc64 hppa ppc \
+                ppc64 xtensa \
+            ) \
+            || [[ $1 == '--autopilot=x' ]] \
+            && declare -a arch_list=( \
+                x86_64 i386 aarch64 riscv64 ppc \
+            ) \
+            || declare -a arch_list=( \
+                x86_64 i386 aarch64 \
+            )
+        
+        for arch in "${arch_list[@]}"; do
+            echo "Doing ${arch}..." >&3
+            
+            if ! "${FIND:-find}" tools -maxdepth 1 \
+                    -name "${arch}-*" >/dev/null; then
+                toolchain_path=$(generate_toolchain "${arch}") || exit
+            fi
+            echo "Got toolchain path ${toolchain_path}" >&3
+            PATH="${toolchain_path}:${PATH}"
+            mkdir -p "rombuild-${arch}" || exit
+            pushd "rombuild-${arch}" || exit
+            if log "${ABS_SRC_DIR}/configure" --host="${arch}-elf"; then
+                echo cwd is "${PWD}"
+                "${MAKE:-make}" clean run-nogdb \
+                    && echo 'Run launch succeeded' >&3 \
+                    || echo 'Run launch failed' >&3
+            else
+                echo 'Configure failed' >&3
+            fi
+            popd
+        done || exit
+        exit
         ;;
     -?|--help)
         echo -- '--host <toolchain prefix>'
@@ -58,7 +159,6 @@ HOST=${HOST:-x86_64-dgos}
 ARCH=${ARCH:-${HOST%%-*}}    # x86_64
 HOSTOS=${HOST#*-}            # dgos
 COMPILER_PREFIX=${COMPILER_PREFIX:-"$HOST-"}
-echo Compiler prefix is $COMPILER_PREFIX
 
 echo -- Configuring for $ARCH
 
@@ -66,15 +166,15 @@ SERIAL_DEBUGCON=$(printf "%s " \
     "-serial stdio")
 
 DEBUG_CON=${DEBUG_CON:-"$SERIAL_DEBUGCON"}
-
-declare -a CONFIG_SOURCES=()
+QEMU_SMP=4
+BIOS_IS_ELF=0
 
 case "$ARCH" in
 aarch64)
-    if [[ -z $GDB ]]; then
-        GDB=${GDB:-gdb-multiarch}
-    fi
-    LINKER_EMULATION=aarch64elf
+#    if [[ -z $GDB ]]; then
+#        GDB=${GDB:-gdb-multiarch}
+#    fi
+    LINKER_EMULATION=${LINKER_EMULATION:-aarch64elf}
     QEMU_MACHINE=${QEMU_MACHINE:-$(printf "%s " \
         "-M virt" \
         "-machine gic-version=3" \
@@ -85,14 +185,52 @@ aarch64)
         '-march=armv8-a' \
         '-mstrict-align')}
     GDB_EXTRA_STARTUP_CMD='-ex '$'\'''set architecture arm'$'\''
-    CONFIG_MACHINE=virt
     ;;
     
+m68k)
+    LINKER_EMULATION=m68kelf
+    QEMU_MACHINE=${QEMU_MACHINE:-$(printf "%s " \
+        "-M virt")}
+    MARCH_FLAGS=${MARCH_FLAGS:-$(printf "%s " \
+        "march=68060")}
+    QEMU_CPU=${QEMU_CPU:-"-cpu m68060"}
+    ;;
+    
+mips)
+    QEMU_CPU=${QEMU_CPU:-"-cpu mips32r6-generic"}
+    ;;
+
+mips64)
+    LINKER_EMULATION=${LINKER_EMULATION:-elf32ebmip}
+    QEMU_CPU=${QEMU_CPU:-"-cpu MIPS64R2-generic"}
+    ;;
+
+mips64el)
+    LINKER_EMULATION=${LINKER_EMULATION:-elf32elmip}
+    QEMU_CPU=${QEMU_CPU:-"-cpu MIPS64R2-generic"}
+    MARCH_FLAGS=${MARCH_FLAGS:--EL -mips64}
+    ;;
+
+alpha)
+    QEMU_CPU=${QEMU_CPU:-"-cpu ev68-alpha-cpu"}
+    ;;
+
+ppc)
+    LINKER_EMULATION=${LINKER_EMULATION:-elf32ppc}
+    QEMU_MACHINE=${QEMU_MACHINE:-$(printf "%s " \
+        '-M ref405ep')}
+    MARCH_FLAGS=${MARCH_FLAGS:--mcpu=750}
+    QEMU_SMP=1
+    QEMU_RAM=128M
+    BIOS_IS_UBOOT=1
+    #BIOS_IS_ELF=1
+    QEMU_CPU=${QEMU_CPU:-"-device pci-serial -cpu 750"} #-device pci-serial"}
+    ;;
+
 x86_64)
     LINKER_EMULATION=${LINKER_EMULATION:-elf_${ARCH}}
     MARCH_FLAGS=${MARCH_FLAGS:-}
     GDB_EXTRA_STARTUP_CMD='-ex '$'\'''set architecture i386:x86-64'$'\''
-    CONFIG_MACHINE=x86
     ;;
     
 i386)
@@ -101,7 +239,6 @@ i386)
     LINKER_EMULATION=${LINKER_EMULATION:-elf_${ARCH}}
     MARCH_FLAGS=${MARCH_FLAGS:--march=i686}
     GDB_EXTRA_STARTUP_CMD='-ex '$'\'''set architecture i386'$'\''
-    CONFIG_MACHINE=x86
     ;;
     
 riscv64)
@@ -115,67 +252,6 @@ riscv64)
             "-mabi=lp64d" \
             "-mcmodel=medany")}
     GDB_EXTRA_STARTUP_CMD='-ex '$'\'''set architecture riscv:rv64'$'\''
-    CONFIG_MACHINE=sifive
-esac
-
-case "$ARCH" in
-x86_64)
-    CONFIG_SOURCES+=(
-        "arch/x86_64/context_arch.cc"
-        "arch/x86_64/exception_arch.S"
-    )
-    ;;
-i386)
-    CONFIG_SOURCES+=(
-        "arch/i386/context_arch.cc"
-        "arch/i386/exception_arch.S"
-    )
-    ;;
-aarch64)
-    CONFIG_SOURCES+=(
-        "arch/aarch64/entry_arch.S"
-        "arch/aarch64/halt_arch.cc"
-        "arch/aarch64/exception_arch.S"
-    )
-    ;;
-riscv64)
-    ;;
-*) 
-    echo Unknown arch
-    exit 1
-esac
-
-GDB_EXTRA_STARTUP_CMD=
-
-case "$CONFIG_MACHINE" in
-x86)
-    CONFIG_SOURCES+=(
-        "machine/x86/entry_arch.S"
-        "machine/x86/halt_arch.cc"
-        "machine/x86/pci_arch.cc"
-        "machine/x86/portio_arch.cc"        
-        "machine/virt/debug_arch.cc"
-    )
-    ;;
-virt)
-    CONFIG_SOURCES+=(
-        "machine/virt/debug_arch.cc"
-        "machine/virt/pci_arch.cc"
-        "machine/virt/portio_arch.cc"
-    )
-    ;;
-sifive)
-    CONFIG_SOURCES+=(
-        "machine/sifive/pci_arch.cc"
-        "machine/sifive/halt_arch.cc"
-        
-        # Share some virt stuff
-        "machine/virt/debug_arch.cc"
-    )    
-    ;;
-*)
-    fail Unrecognized CONFIG_MACHINE: "$CONFIG_MACHINE"
-    ;;
 esac
 
 declare -A PROGRAMS=(
@@ -186,6 +262,7 @@ declare -A PROGRAMS=(
     ["QEMU"]=${QEMU:-qemu-system-$ARCH}
     ["LN"]=${LN:-ln}
     ["CP"]=${CP:-cp}
+    ["CAT"]=${CAT:-cat}
     ["CHMOD"]=${CHMOD:-chmod}
     ["CMP"]=${CMP:-cmp}
     ["RM"]=${RM:-rm}
@@ -196,75 +273,85 @@ declare -A PROGRAMS=(
     ["SORT"]=${SORT:-sort}
 )
 
+declare -A nofail_program=(
+    ["GDB"]=1
+)
+
 # Create variables from what `which` returns for them all
 for name in "${!PROGRAMS[@]}"; do
-    value="${PROGRAMS["$name"]}"
-    loc=$("$WHICH" -- "$value") || fail Failed to find $value for $name
+    value="${PROGRAMS[$name]}"
+    loc=$("$WHICH" -- "$value") \
+        || [[ -n ${nofail_program[$name]} ]] \
+        || fail "Failed to find $value for $name"
     
-    PROGRAMS+=(["$name"]=$loc)
+    PROGRAMS[$name]=$loc
     
     eval "$name=$loc"
 done
 
-ABS_SRC_DIR="$( cd "$( dirname \
-        "${BASH_SOURCE[0]}" )"&> /dev/null && pwd )" || exit
-
-SRC_DIR=$("$REALPATH" --relative-to="." "$ABS_SRC_DIR") || \
-        fail Unable to deduce relative path to source
+declare -A LIBGCC_ARCH_ARGS=(
+    ["x86_64"]=""
+    ["i386"]="-m32"
+    ["aarch64"]=""
+    ["riscv64"]=""
+    ["m68k"]="-march=68060"
+    ["mips"]=""
+    ["mips64"]=""
+    ["alpha"]=""
+)
 
 if [[ $LIBGCC == "" ]]; then
-    if [[ $ARCH == "x86_64" ]]; then
-        LIBGCC=$("$CXX" -print-libgcc-file-name) || \
-                fail getting m32 libgcc path failed
-    elif [[ $ARCH == "i386" ]]; then
-        LIBGCC=$("$CXX"  -m32 -print-libgcc-file-name) || \
-                fail getting m32 libgcc path failed
-    elif [[ $ARCH == "aarch64" ]]; then
-        LIBGCC=$("$CXX" -print-libgcc-file-name) || \
-                fail getting aarch64 libgcc path failed
-    elif [[ $ARCH == "riscv64" ]]; then
-        LIBGCC=$("$CXX" -print-libgcc-file-name) || \
-                fail getting riscv64 libgcc path failed
-    else
-        fail Unknown architecture
-    fi
+    LIBGCC=$("$CXX" ${LIBGCC_ARCH_ARGS[${ARCH}]} \
+        -print-libgcc-file-name) || \
+        fail 'getting libgcc path failed'
 fi
 
 #
 # Detect stuff from qemu
 
-
-
 function run_monitor_commands() {
+    ${TRUNCATE:-truncate} --size=2M rom-dummy
     printf '%s\n' "$@" | \
-        "$QEMU" $QEMU_MACHINE $QEMU_CPU ${QEMU_RAM:-} \
+        log "$QEMU" -bios rom-dummy -device secondary-vga \
+            $QEMU_MACHINE $QEMU_CPU -m ${QEMU_RAM:-1536M} \
         \
-        -monitor stdio | grep -vP '\x1b'
+        -monitor stdio | grep -vP '\x1b' || exit
 }
 
-run_monitor_commands 'info mtree' 'q' > "configure.mtree.log" &
-run_monitor_commands 'info qtree' 'info pci' 'q' > "configure.info.log" &
-wait
+log printf "%s\n" "Qemu device list is in configure.devices.log"
+log "${QEMU}" -device help > "configure.devices.log"
+run_monitor_commands 'info mtree' 'q' > "configure.mtree.log" \
+    || fail info mtree failed
+run_monitor_commands 'info qtree' 'info pci' 'q' > "configure.info.log" \
+    || fail info qtree failed
 
 function detect_address_range() {
     local searchterm="$1"
-    local in_machine=0
-    pattern='^address-space: cpu-memory-0'
-    securepattern='^address-space: cpu-secure-memory-0:'
-    donepattern='^\s*$'
+    pattern='address-space: cpu-memory-0'
+    securepattern='address-space: cpu-secure-memory-0'
+    donepattern='^address-space: '
     matchpattern='([0-9a-fA-F]+-[0-9a-fA-F]+)'
+    crpattern='\x1b'
+    local in_machine=0
     while read -d$'\n' line; do
-        if [[ $in_machine != 0 ]]; then
-            if [[ $line =~ $pattern ]] || \
-                    [[ $line =~ $securepattern ]]; then
+        [[ $line =~ $crpattern ]] \
+            && echo skipped \
+            && continue
+        
+        if [[ $in_machine -eq 0 ]]; then
+            if [[ ${line} =~ ${pattern} ]] \
+                    || [[ $line =~ $securepattern ]]; then
                 in_machine=1
-            elif [[ $line =~ $donepattern ]]; then
-                in_machine=0
+                continue
             fi
-        elif [[ $line =~ $searchterm ]]; then
-            if [[ $line =~ $matchpattern ]]; then
-                printf '%s' "${BASH_REMATCH[1]}" && exit
+        elif [[ ${line} =~ ${searchterm} ]]; then
+            if [[ ${line} =~ ${matchpattern} ]]; then
+                printf '%s' "${BASH_REMATCH[1]}"
+                exit
             fi
+        elif [[ ${line} =~ ${donepattern} ]]; then
+            in_machine=0
+            continue
         fi
     done < "configure.mtree.log"
 }
@@ -292,28 +379,36 @@ function address_range_lb() {
 
 declare -A DEFINES=()
 
-declare -A DEFINE_NAMES=(
-    ["ecam_range"]="ECAM_MMIO"
-    ["ioport_range"]="IOPORT_MMIO"
-    ["ram_range"]="RAM"
-    ["serial_range"]="SERIAL_DEBUGCON"
+declare -A ranges=(
+    ["ecam"]=pcie-ecam
+    ["ioport"]=ioport
+    ["ram"]=\.ram
+    ["serial"]='serial|pl011'
+    ["fwcfgdma"]=fwcfg.dma
+    ["pciconfidx"]=pci-conf-idx
+    ["pciconfdat"]='pci-conf-data|pci-data-idx'
+    ["vbe"]=vbe
+    ["fwcfg_ctl"]=fwcfg.ctl
+    ["fwcfg_data"]=fwcfg.data
+    ["hole"]='pci-mmio|pcie-mmio'
+    ["gt64120_isd"]="gt64120-isd"
 )
 
-ecam_range=$(detect_address_range pcie-ecam)
-ioport_range=$(detect_address_range ioport)
-ram_range=$(detect_address_range \.ram)
-serial_range=$(detect_address_range serial\|pl011)
-fwcfgdma_range=$(detect_address_range fwcfg.dma)
+for name in "${!ranges[@]}"; do
+    ranges[${name}]=$(detect_address_range "${ranges[${name}]}")
+done
 
-for range in ecam_range ioport_range ram_range serial_range; do
-    printf "%6s range is %s to %s\n" \
-        "$range" "$(address_range_st "${!range}")" \
-        "$(address_range_lb "${!range}")"
-    name=${DEFINE_NAMES["${range}"]}
+for range in "${!ranges[@]}"; do
+    value="${ranges[$range]}"
+    [[ -z $value ]] && continue
+    printf "%10s range is %s to %s\n" \
+        "${range^^}" "$(address_range_st "${value}")" \
+        "$(address_range_lb "${value}")"
+    name=${range^^}
     namest="${name}_ST"
     namelb="${name}_LB"
-    DEFINES+=(["${namest}"]="$(address_range_st "${!range}")")
-    DEFINES+=(["${namelb}"]="$(address_range_lb "${!range}")")
+    DEFINES[${namest}]="$(address_range_st "${value}")"
+    DEFINES[${namelb}]="$(address_range_lb "${value}")"
 done
 
 #
@@ -321,28 +416,35 @@ done
 
 trap '"$RM" -f "$TMPCFGFILE"' EXIT
 
-TMPCFGFILE=$(mktemp) || fail Could not create temp file
+TMPCFGFILE=$(mktemp) || fail "Could not create temp file"
 
 printf '// This file is automatically generated\n' >> "$TMPCFGFILE"
 for define in "${!DEFINES[@]}"; do
-    value="${DEFINES["${define}"]}"
+    value="${DEFINES[${define}]}"
     printf '#define %s %s\n' \
             "${define}" \
-            "$value" >> "$TMPCFGFILE"
+            "${value}" >> "${TMPCFGFILE}"
 done
 
-mkdir -p build_includes || fail Cannot mkdir build_includes
-"$SORT" < "$TMPCFGFILE" > build_includes/build.config.h || \
-    fail Failed to place generated config file in build directory
+[[ -f build_includes/build.config.h ]] && \
+    "${MV}" build_includes/build.config.h \
+        build_includes/build.config.h-orig \
+        || fail 'Could not move bulld config'
+mkdir -p build_includes || fail 'Cannot mkdir build_includes'
+"${SORT}" < "${TMPCFGFILE}" > build_includes/build.config.h || \
+    fail 'Failed to place generated config file in build directory'
+if "${CMP}" -s \
+        build_includes/build.config.h \
+        build_includes/build.config.h-orig; then
+    "${MV}" -f build_includes/build.config.h-orig build_includes/build.config.h
+fi
 
 #
 # Create config.mk
 
 trap '"$RM" -f "$TMPFILE"' EXIT
 
-TMPFILE=$(mktemp) || fail Could not create temp file
-
-CONFIG_SOURCES="${CONFIG_SOURCES[@]}"
+TMPFILE=$(mktemp) || fail 'Could not create temp file'
 
 BUILD_INCLUDES=$(realpath build_includes)
 
@@ -352,40 +454,45 @@ declare -a PASSTHRU=(
     "LINKER_EMULATION"
     "QEMU_MACHINE"
     "QEMU_CPU"
+    "QEMU_SMP"
+    "QEMU_RAM"
     "HOSTOS"
     "SRC_DIR"
     "COMPILER_PREFIX"
     "LIBGCC"
     "DEBUG_CON"
     "GDB_EXTRA_STARTUP_CMD"
-    "CONFIG_SOURCES"
     "BUILD_INCLUDES"
+    "BIOS_IS_ELF"
 )
 
 printf '# This file was automatically generated by %s/configure\n' \
-        "${SRC_DIR}" >> "$TMPFILE" || fail Unable to create new config.mk
+        "${SRC_DIR}" >> "$TMPFILE" || fail 'Unable to create new config.mk'
 
 for name in "${PASSTHRU[@]}"; do
     printf 'export %s=%s\n' "$name" "${!name}" >> "$TMPFILE" || \
-        fail Write error generating config.mk
+        fail 'Write error generating config.mk'
 done
 
 for name in "${!PROGRAMS[@]}"; do
-    printf 'export %s=%s\n' "$name" "${PROGRAMS["$name"]}" >> "$TMPFILE" || \
-            fail Write error
+    printf 'export %s=%s\n' "$name" "${PROGRAMS[$name]}" >> "$TMPFILE" || \
+            fail 'Write error'
 done
 
 if ! "$CMP" -s "$TMPFILE" config.mk; then
     echo 'Updated config.mk'
-    "$MV" -f "$TMPFILE" config.mk || fail Moving config.mk into place failed
+    "$MV" -f "$TMPFILE" config.mk || fail 'Moving config.mk into place failed'
 else
-    "$TOUCH" config.mk || fail Touching config.mk failed
+    "$TOUCH" config.mk || fail 'Touching config.mk failed'
 fi
 
 if ! "$CMP" -s "${SRC_DIR}/Makefile" Makefile; then
     echo 'Updated makefile'
     "$CP" -u --preserve=timestamps "${SRC_DIR}/Makefile" Makefile || \
-            fail Unable to update Makefile
+            fail 'Unable to update Makefile'
 fi
 
 echo Configure done
+
+# Close separate script stdout
+exec 3>&-

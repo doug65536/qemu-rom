@@ -88,6 +88,8 @@ struct display_t {
     bochs_vbe_mmio_t volatile *mmio_addr;
     uintptr_t framebuffer_addr;
     uintptr_t framebuffer_size;
+    uintptr_t portaddr;
+    bool port_is_mmio;
     unsigned width;
     unsigned height;
     unsigned bpp;
@@ -100,12 +102,10 @@ static constexpr size_t MAX_DISPLAYS = 8;
 static display_t displays[MAX_DISPLAYS];
 static size_t display_count;
 
-bool dispi_add_device(uintptr_t mmio_addr,
-        uintptr_t framebuffer_addr, size_t framebuffer_size)
+void dispi_add_mmio_device(
+    uintptr_t framebuffer_addr, size_t framebuffer_size, 
+    uintptr_t mmio_addr)
 {
-    if (display_count >= MAX_DISPLAYS)
-        return false;
-
     bochs_vbe_mmio_t volatile *mmio = (bochs_vbe_mmio_t volatile *)mmio_addr;
 
     // Unblank
@@ -117,22 +117,32 @@ bool dispi_add_device(uintptr_t mmio_addr,
         mmio,
         framebuffer_addr,
         framebuffer_size,
-        0, 0, 0, 0, 0
+        0, 0, 0, 0, 0, 0, 0
     };
 
     printdbg("Initialized %zuKB display at %zx\n",
-            framebuffer_size >> 10, framebuffer_addr);
+            framebuffer_size >> 10, framebuffer_addr);    
+}
+
+bool dispi_add_device(uintptr_t mmio_addr,
+        uintptr_t framebuffer_addr, size_t framebuffer_size)
+{
+    if (display_count >= MAX_DISPLAYS)
+        return false;
+
+    dispi_add_mmio_device(framebuffer_addr, framebuffer_size, mmio_addr);
 
     return true;
 }
 
-bool dispi_fill_screen(size_t index)
+bool dispi_fill_screen(size_t index, size_t page)
 {
     if (index >= MAX_DISPLAYS)
         return false;
 
     display_t *display = displays + index;
-    uint32_t *pixels = (uint32_t*)display->framebuffer_addr;
+    uint32_t *pixels = (uint32_t*)(display->framebuffer_addr +
+        page * display->virtw * display->height);
 
     int pixel_count = display->width * display->height;
     for (int i = 0; i < pixel_count; ++i) {
@@ -168,10 +178,10 @@ bool dispi_set_mode(size_t index,
     if (index >= display_count)
         return false;
 
-    if (!vw)
+    if (vw < 0)
         vw = w * (bpp / 8);
 
-    if (!vh)
+    if (vh < 0)
         vh = h;
 
     bochs_vbe_mmio_t volatile *mmio = displays[index].mmio_addr;
@@ -188,9 +198,9 @@ bool dispi_set_mode(size_t index,
     
     displays[index].width = w;
     displays[index].height = h;
-    displays[index].bpp = h;
-    displays[index].virtw = h;
-    displays[index].virth = h;
+    displays[index].bpp = bpp;
+    displays[index].virtw = vw;
+    displays[index].virth = vh;
 
     return dispi_set_enable(index, enabled, noclear);
 }
@@ -221,20 +231,17 @@ bool dispi_set_pos(size_t index, int x, int y)
     return true;
 }
 
-bool dispi_init()
+bool dispi_get_framebuffer(size_t index, dispi_framebuffer_t *info)
 {
-    size_t index = -1;
-    do {
-        index = pci_enum_next_vendor_device(index, 0x1234, 0x1111);
-        if (index != size_t(-1)) {
-            uint64_t framebuffer_bar = pci_bar_get_base(index, 0);
-            uint64_t framebuffer_sz = pci_bar_size(index, 0);
-            uint64_t mmio_bar = pci_bar_get_base(index, 2);
-            
-            if (!dispi_add_device(mmio_bar, framebuffer_bar, framebuffer_sz))
-                return false;
-        }
-    } while (index != size_t(-1));
+    if (index >= display_count)
+        return false;
+    
+    display_t &display = displays[index];
+    
+    info->pixels = (uint32_t*)display.framebuffer_addr;
+    info->pitch = display.virtw;
+    info->width = display.width;
+    info->height = display.height;
     
     return true;
 }

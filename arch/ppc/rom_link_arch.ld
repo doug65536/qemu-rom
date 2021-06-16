@@ -3,32 +3,44 @@
 
 MEMORY {
     /* 512MB at +2MB */
-
-    /* 0000000000000000-0000000003ffffff (prio 0, romd): virt.flash0 */
-    rom      : org = 0x00000000, len = 0x4000000
     
-    /* 0000000004000000-0000000007ffffff (prio 0, romd): virt.flash1 */
-    nvram    : org = 0x04000000, len = 0x4000000
-
-    /* 0000000040000000-0000000047ffffff (prio 0, ram): mach-virt.ram */
-    ram  (w) : org = 0x40000000, len = 0x8000000
+    
+    ram  (w) : org = 0x0, len = 0x3fe00000
+    
+    header   : org = 0x3fe00000, len = 0x40
+    
+    rom      : org = 0x3fe00040, len = 0x1fefc0
+    
+    entry    : org = 0x3ffff000, len = 0x1000
 }
 
 SECTIONS {
     /DISCARD/ : { *(.note.gnu.build-id); }
     /DISCARD/ : { *(.eh_frame); }
+    
+    /* The largest memory model can't reach RAM from ROM PC, 
+     * so copy everything to RAM on riscv64 */
+    
+    .header : {
+        *(.header)
+        *(.header.*)
+    } >header AT >header
 
-    /* First instruction fetched from ip=0 */
-    .text : {
+    /* First instruction fetched from ip=0xFFF00100 */
+    .entry : {
+        ___image_vma = ABSOLUTE(.);
+        ___image_lma = LOADADDR(.text);
         *(.text.entry);
+        *(.text.entry.*);
         
-        . = ALIGN(2K);
-        *(.text.vbar);
-        
+        . = ABSOLUTE(0x40000000);
+    } >entry AT >entry
+    
+    .text : {
         *(.text);
         *(.text.*);
 
-        . = ALIGN(4K);
+        . = ALIGN(16K);
     } >rom AT >rom
 
     .rodata : {
@@ -62,7 +74,7 @@ SECTIONS {
         *(.rela.text.early);
         *(.rela.text.entry);
         *(.comment);
-        . = ALIGN(4K);
+        . = ALIGN(16K);
     } >rom AT >rom =0
 
 /*    .debug : {    
@@ -73,15 +85,16 @@ SECTIONS {
         *(.debug_line);
         *(.debug_ranges);
         *(.debug_str);
-    } >rom AT >rom =0
+    } >ram AT >rom = 0
 */
     .data : {
-        ___data_vma = .;
         *(.data);
         *(.data.*);
-        ___data_end = .;
-        . = ALIGN(16);
+        . = ALIGN(16K);
+        ___image_end = ABSOLUTE(.);        
     } >ram AT >rom =0
+    
+    . = ALIGN(16K);
 
     .bss (NOLOAD) : {
         ___bss_st = .;

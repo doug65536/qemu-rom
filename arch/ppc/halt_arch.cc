@@ -2,6 +2,5 @@
 
 void arch_halt()
 {
-    while (true)
-        __asm__("hlt");
+    while(1);
 }
