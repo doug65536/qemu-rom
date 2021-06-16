@@ -78,11 +78,6 @@ static void fill_tri(
 void draw_tri_ccw(vec3 const *v0, vec3 const *v1, vec3 const *v2, 
     uint32_t color)
 {
-    // There are possibilities:
-    //  1) v0 is already at the top, and is already first
-    //  2) v1 should be first
-    //  3) v2 should be first
-    
     float minyf, maxyf;
     if (v0->y < v1->y) {
         // v0 is lower. use v0 to get min, use v1 to get max
