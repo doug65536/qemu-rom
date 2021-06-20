@@ -89,4 +89,6 @@ To launch toolchain gdb attached to qemu (presumably the one from `make debug`)
     
 ## QEMU configuration
 
-You can override 
+You can pass additional arguments to qemu by adding `QEMUEXTRAFLAGS='-flags...'`
+to the make command line arguments.
+
