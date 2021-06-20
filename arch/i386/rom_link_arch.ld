@@ -21,7 +21,7 @@ SECTIONS {
     /DISCARD/ : { *(.eh_frame); }
 
     /* 386 and newer fetch the first instruction from 0xFFFFFFF0 */
-    .entry : {
+    .text.entry : {
         *(.text.entry);
         . = 16;
     } >entry AT >entry
@@ -82,7 +82,7 @@ SECTIONS {
         ___heap_st = ALIGN(4K);
     } >ram AT >ram
 
-    ___initial_stack = ORIGIN(ram);
+    ___stack_bottom = ORIGIN(ram);
 
     /* Create a symbol we can use to locate the start of the .data RAM */
     ___data_vma = ADDR(.data);

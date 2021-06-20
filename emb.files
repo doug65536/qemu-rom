@@ -35,6 +35,7 @@ driver/pci/indexed_io/pci_arch.cc
 driver/pci/port_io/pci_arch.cc
 driver/pci/x86_io/pci_arch.cc
 generate_uboot_header
+likely.h
 machine/sifive/halt_arch.cc
 machine/sifive/pci_arch.cc
 machine/virt/debug_arch.cc
@@ -45,6 +46,9 @@ machine/virt/portio_arch.h
 arch/x86_64/exception_arch.S
 arch/x86_64/rom_link_arch.ld
 machine/virt/portio_arch.h
+machine/x86/bochs-debug.bxrc
+machine/x86/bochs-debug.bxrc
+machine/x86/bochs-debugger-commands
 machine/x86/debug_arch.cc
 machine/x86/entry_arch.S
 machine/x86/halt_arch.cc
@@ -58,12 +62,15 @@ debug.h
 dispi.h
 entry.S
 main.cc
+malloc.cc
+malloc.h
 math/kernel_sincos.h
 math/math.cc
 math/math.h
 math/math_private.h
 math/sincos.cc
 math/truncf.cc
+obj.cc
 polygon.cc
 polygon.h
 render.cc

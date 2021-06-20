@@ -1,0 +1,1 @@
+ldsym global "emb-x86_64.sym"

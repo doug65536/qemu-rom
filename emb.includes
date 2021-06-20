@@ -17,3 +17,4 @@ driver/pci/indexed_io
 driver/debug
 arch/mips64el
 math
+machine/x86

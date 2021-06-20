@@ -31,6 +31,8 @@ SECTIONS {
         *(.text.early);
     } >early AT >early
     
+    . = ALIGN(4K);
+    
     .rodata.early : {
         *(.rodata.early);
     } >early AT >early =0
@@ -48,12 +50,16 @@ SECTIONS {
         *(.rela.text.early);
         *(.comment);
     } >rom AT >rom =0
+    
+    . = ALIGN(4K);
 
     .text : {
         *(.text.align4k);
         *(.text);
         *(.text.*);
     } >rom AT >rom
+
+    . = ALIGN(4K);
 
     .data : {
         ___data_vma = ABSOLUTE(.);
@@ -91,8 +97,13 @@ SECTIONS {
 
         ___heap_st = ALIGN(4K);
     } >ram AT >ram
+    
+    /* Nice to have in debugger */
+    ___stack_bottom = ORIGIN(ram);
+    ___stack_limit = ORIGIN(ram) - 0x200000;
 
-    ___initial_stack = ORIGIN(ram) - 0x100000000;
+    ___phys_stack_bottom = ORIGIN(ram) - 0x100000000;
+    ___phys_stack_limit = ORIGIN(ram) - 0x200000 - 0x100000000;
 
     /* Create a symbol we can use to locate the start of the .data RAM */
     ___data_vma = ADDR(.data);

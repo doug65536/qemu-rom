@@ -76,10 +76,17 @@ static inline void sincos(double a,
 static inline float sqrtf(float n)
 {
     float result;
+#if defined(__x86_64__s)
     __asm__("sqrtss %[src],%[dst]" 
         : [dst] "=x" (result) 
         : [src] "x" (n)
     );
+#else
+    result = n;
+    __asm__("fsqrt\n\t" 
+        : [dst] "+t" (result)
+    );
+#endif
     return result;
 }
 

@@ -40,6 +40,7 @@ ARCH_SOURCE_NAMES = \
     vec.cc \
     render.cc \
     polygon.cc \
+    malloc.cc \
     main.cc
 
 DISPI_SOURCE_NAMES = \
@@ -121,7 +122,7 @@ ARCH_SOURCE_NAMES_m68k =
 #    machine/sifive/halt_arch.cc \
 #    machine/virt/debug_arch.cc
 
-SOURCE_NAMES += \
+SOURCE_NAMES = \
     $(ARCH_SOURCE_NAMES) \
     $(ARCH_SOURCE_NAMES_$(ARCH))
 
@@ -148,6 +149,7 @@ clean:
 		emb-$(ARCH) \
 		emb-$(ARCH).rom \
 		emb-$(ARCH).map \
+		emb-$(ARCH).sym \
 		rom \
 		$(OBJECTS_ALL) \
 		$(DEPFILES) \
@@ -204,11 +206,12 @@ CXX_FLAGS_COMMON = \
 	-fno-exceptions -fno-asynchronous-unwind-tables \
 	-nostdlib \
 	-static \
-	-Wl,--no-dynamic-linker \
+	-Wl,--no-relax \
 	-Wl,-m$(LINKER_EMULATION) \
 	-fno-common \
 	$(ARCH_FLAGS_$(ARCH))
 
+#-Wl,--no-dynamic-linker
 #-fPIE
 
 LINKFLAGS = $(CXX_FLAGS_COMMON) \
@@ -226,8 +229,11 @@ COMPILEFLAGS = \
 	$(ARCH_FLAGS_$(ARCH)) \
 	$(MARCH_FLAGS)
 
+emb-$(ARCH).sym: emb-$(ARCH)
+	$(NM) --demangle $< > $@
+
 emb-$(ARCH): $(OBJECTS_ALL) Makefile config.mk
-	$(CXX) -o $@ $(OBJECTS_ALL) $(LINKFLAGS) $(LDFLAGS)
+	$(CXX) -o $@ $(OBJECTS_ALL) $(LINKFLAGS) $(CXXFLAGS) $(LDFLAGS)
 
 emb-$(ARCH): ${SRC_DIR}/arch/$(ARCH)/rom_link_arch.ld Makefile config.mk
 
@@ -285,6 +291,8 @@ QEMUFLAGS = \
 		\
 		-smp $(QEMU_SMP) \
 		\
+		-d guest_errors,cpu_reset \
+		\
 		-no-reboot -no-shutdown $(QEMUEXTRAFLAGS)
 
 debug: $(BIOS_FILENAME)
@@ -292,10 +300,21 @@ debug: $(BIOS_FILENAME)
 
 .PHONY: debug-$(ARCH)
 
+debug-bochs: $(BIOS_FILENAME) emb-$(ARCH).sym
+	$(BOCHS) -f $(SRC_DIR)/machine/x86/bochs-debug.bxrc \
+		-rc $(SRC_DIR)/machine/x86/bochs-debugger-commands
+
+.PHONY: debug-bochs
+
 run: $(BIOS_FILENAME)
 	$(QEMU) -s $(QEMUFLAGS)
 
 .PHONY: run
+
+run-kvm: $(BIOS_FILENAME)
+	$(QEMU) -s $(QEMUFLAGS) -enable-kvm
+
+.PHONY: run-kvm
 
 disassemble: emb-$(ARCH)
 	$(OBJDUMP) -S $< | $(LESS)

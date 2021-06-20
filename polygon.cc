@@ -24,12 +24,12 @@ void set_render_surface(uint32_t *pixels, uint32_t pitch,
 
 static void draw_tri_scan_edge(
     uint16_t *left_output, uint16_t *right_output,
-    vec3 const *v0, vec3 const *v1, int miny)
+    vec4 const *v0, vec4 const *v1, int miny)
 {
     // Counterclockwise triangles go down on the left, and up on the right
     uint16_t *output = v0->y < v1->y ? left_output : right_output;
-    vec3 const *vs;
-    vec3 const *ve;
+    vec4 const *vs;
+    vec4 const *ve;
 
     if (v0->y < v1->y) {
         // Left side
@@ -43,20 +43,22 @@ static void draw_tri_scan_edge(
         ve = v0;
     }
     
-    int sy = (int)vs->y;
+    int sy = (int)vs->y; 
     int ey = (int)ve->y;
-    int offset = (int)vs->y - miny;
-    output += offset;
-    
-    int fpsx = (int)(vs->x * 65536.0f);
-    int fpex = (int)(ve->x * 65536.0f);
-    int fpdx = fpex - fpsx;
-    int dy = ve->y - vs->y;
-    int step = fpdx / dy;
-    // Add rounding offset outside loop, so loop can just truncate
-    int x = fpsx + 0x8000;
-    for (int i = sy; i < ey; ++i, x += step)
-        *output++ = x >> 16;
+    if (sy < ey) {
+        int offset = (int)vs->y - miny;
+        output += offset;
+        
+        int fpsx = (int)(vs->x * 65536.0f);
+        int fpex = (int)(ve->x * 65536.0f);
+        int fpdx = fpex - fpsx;
+        int dy = ey - sy;
+        int step = fpdx / dy;
+        // Add rounding offset outside loop, so loop can just truncate
+        int x = fpsx + 0x8000;
+        for (int i = sy; i < ey; ++i, x += step)
+            *output++ = x >> 16;
+    }
 }
 
 static void fill_tri(
@@ -69,13 +71,15 @@ static void fill_tri(
     while (miny++ < maxy) {
         size_t en = *right_output++;
         size_t st = *left_output++;
+        
         while (st < en)
             scanline[st++] = color;
+            
         scanline = (uint32_t*)((char*)scanline + render_surface.pitch);
     }
 }
 
-void draw_tri_ccw(vec3 const *v0, vec3 const *v1, vec3 const *v2, 
+void draw_tri_ccw(vec4 const *v0, vec4 const *v1, vec4 const *v2, 
     uint32_t color)
 {
     float minyf, maxyf;
@@ -97,12 +101,9 @@ void draw_tri_ccw(vec3 const *v0, vec3 const *v1, vec3 const *v2,
     uint16_t *left_output = scratch16;
     uint16_t *right_output = scratch16 + height;
     
-    if (v0->y != v1->y)
-        draw_tri_scan_edge(left_output, right_output, v0, v1, miny);
-    if (v1->y != v2->y)
-        draw_tri_scan_edge(left_output, right_output, v1, v2, miny);
-    if (v2->y != v0->y)
-        draw_tri_scan_edge(left_output, right_output, v2, v0, miny);
+    draw_tri_scan_edge(left_output, right_output, v0, v1, miny);
+    draw_tri_scan_edge(left_output, right_output, v1, v2, miny);
+    draw_tri_scan_edge(left_output, right_output, v2, v0, miny);
     
     fill_tri(left_output, right_output, miny, maxy, color);
 }

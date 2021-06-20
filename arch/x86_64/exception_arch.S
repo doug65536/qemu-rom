@@ -116,6 +116,7 @@ isr_\i :
 .endm
 
 .section .text.align4k, "x", @progbits
+.balign 4096
 interrupt_entry_points:
 .set i, 0
 .rept 256
